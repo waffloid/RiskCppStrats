@@ -38,6 +38,7 @@ private:
     std::vector<bool> alive_;
     float time_ = 0.0f;
     int n_players_;
+    int n_real_players_;  // excludes neutral player
 
     void process_build_commands(const std::vector<PlayerCommands>& commands);
     void process_troop_sends(const std::vector<PlayerCommands>& commands);
@@ -45,6 +46,7 @@ private:
     void update_all_edge_lanes(float dt);
     void process_arrivals(std::vector<Arrival>& arrivals);
     void resolve_all_combat();
+    void update_ownership();
     void produce_all_troops();
     void update_alive();
 

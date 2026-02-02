@@ -6,7 +6,13 @@
 #include <algorithm>
 
 Game::Game(const GameConfig& config, const std::vector<int>& capitals, uint64_t seed)
-    : config_(config), n_players_(static_cast<int>(capitals.size())) {
+    : config_(config), n_real_players_(static_cast<int>(capitals.size())) {
+
+    n_players_ = n_real_players_;
+    // Add a neutral player if default troops are configured
+    bool has_neutral = config_.init_default_troops > 0;
+    if (has_neutral) n_players_ = n_real_players_ + 1;
+    int neutral_id = n_real_players_; // last player slot
 
     graph_ = Graph::generate_poisson(config_, seed);
 
@@ -18,11 +24,20 @@ Game::Game(const GameConfig& config, const std::vector<int>& capitals, uint64_t 
 
     // Place capitals
     alive_.assign(n_players_, true);
-    for (int p = 0; p < n_players_; p++) {
+    for (int p = 0; p < n_real_players_; p++) {
         int node = capitals[p];
         node_data_[node].state = NodeState::CAPITAL;
         node_data_[node].owner = p;
         node_data_[node].troops[p] = config_.init_troop_count;
+    }
+
+    // Place neutral defenders on non-capital nodes
+    if (has_neutral) {
+        for (int i = 0; i < graph_.num_nodes(); i++) {
+            if (node_data_[i].state == NodeState::CAPITAL) continue;
+            node_data_[i].owner = neutral_id;
+            node_data_[i].troops[neutral_id] = config_.init_default_troops;
+        }
     }
 
     // Initialize edge lanes
@@ -48,6 +63,8 @@ void Game::tick(float dt, const std::vector<PlayerCommands>& commands) {
     update_all_edge_lanes(dt);
     // 6. Combat
     resolve_all_combat();
+    // 6b. Update ownership based on troop presence
+    update_ownership();
     // 7. Production
     produce_all_troops();
     // 8. Update alive
@@ -73,7 +90,7 @@ bool Game::validate_build(int player_id, const BuildCommand& cmd) const {
     if (nd.state != NodeState::DEFAULT) return false; // can only build on default nodes
     int cost = building_cost(cmd.structure);
     if (cost <= 0) return false;
-    if (nd.troops[player_id] < cost) return false;
+    if (nd.troops[player_id] < cost + 1) return false; // must keep at least 1 troop to hold ownership
     return true;
 }
 
@@ -185,6 +202,21 @@ void Game::produce_all_troops() {
     produce_troops(node_data_, graph_, config_);
 }
 
+void Game::update_ownership() {
+    for (auto& nd : node_data_) {
+        int sole_owner = -1;
+        int n_present = 0;
+        for (int p = 0; p < n_players_; p++) {
+            if (nd.troops[p] > 0) {
+                sole_owner = p;
+                n_present++;
+            }
+        }
+        // Owned iff exactly one player has troops; contested or empty = -1
+        nd.owner = (n_present == 1) ? sole_owner : -1;
+    }
+}
+
 void Game::update_alive() {
     for (int p = 0; p < n_players_; p++) {
         if (!alive_[p]) continue;
@@ -219,8 +251,8 @@ void Game::update_alive() {
 
 bool Game::is_game_over() const {
     int alive_count = 0;
-    for (bool a : alive_) {
-        if (a) alive_count++;
+    for (int p = 0; p < n_real_players_; p++) {
+        if (alive_[p]) alive_count++;
     }
     return alive_count <= 1;
 }

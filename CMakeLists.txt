@@ -20,16 +20,20 @@ add_executable(crisky_headless src/main_headless.cpp)
 target_link_libraries(crisky_headless PRIVATE crisky_engine)
 
 # --- RayLib (FetchContent) ---
-# include(FetchContent)
-# FetchContent_Declare(raylib
-#     GIT_REPOSITORY https://github.com/raysan5/raylib.git
-#     GIT_TAG 5.5
-# )
-# FetchContent_MakeAvailable(raylib)
+include(FetchContent)
+FetchContent_Declare(raylib
+    GIT_REPOSITORY https://github.com/raysan5/raylib.git
+    GIT_TAG 5.5
+)
+FetchContent_MakeAvailable(raylib)
 
 # --- Interactive game binary ---
-# add_executable(crisky_game src/main_game.cpp)
-# target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
+add_executable(crisky_game
+    src/main_game.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
+)
+target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
 
 # --- Tests ---
 add_executable(test_graph tests/test_graph.cpp)
@@ -43,3 +47,6 @@ target_link_libraries(test_combat PRIVATE crisky_engine)
 
 add_executable(test_game tests/test_game.cpp)
 target_link_libraries(test_game PRIVATE crisky_engine)
+
+add_executable(test_gameplay tests/test_gameplay.cpp)
+target_link_libraries(test_gameplay PRIVATE crisky_engine)

@@ -72,12 +72,44 @@ void Graph::build_edges(float distance_threshold) {
 }
 
 void Graph::cull_high_degree(int max_neighbors) {
-    // Identify nodes to remove: those with too many neighbors
+    // Iteratively remove the highest-degree node until all are within limit.
+    // This preserves more graph structure than removing all violators at once.
+    // Precompute edge lengths for each node's neighbors
+    // node_neighbor_dist[i] maps neighbor_idx -> distance
+    std::vector<std::unordered_map<int, float>> node_neighbor_dist(num_nodes());
+    for (const auto& e : edges) {
+        node_neighbor_dist[e.a_idx][e.b_idx] = e.length;
+        node_neighbor_dist[e.b_idx][e.a_idx] = e.length;
+    }
+
     std::vector<bool> removed(num_nodes(), false);
-    for (const auto& node : nodes) {
-        if (static_cast<int>(node.neighbor_indices.size()) > max_neighbors) {
-            removed[node.idx] = true;
+    for (;;) {
+        int worst = -1;
+        float worst_score = -1.0f;
+        for (const auto& node : nodes) {
+            if (removed[node.idx]) continue;
+            // Count live neighbors and sum distances to them
+            int deg = 0;
+            float dist_sum = 0.0f;
+            for (int nb : node.neighbor_indices) {
+                if (removed[nb]) continue;
+                deg++;
+                auto it = node_neighbor_dist[node.idx].find(nb);
+                if (it != node_neighbor_dist[node.idx].end())
+                    dist_sum += it->second;
+            }
+            if (deg <= max_neighbors) continue;
+            // Among violators, prefer to remove the most clustered:
+            // lowest sum of neighbor distances (tightly packed)
+            // Invert so that smallest dist_sum = highest score
+            float score = static_cast<float>(deg) / (dist_sum + 0.001f);
+            if (score > worst_score) {
+                worst_score = score;
+                worst = node.idx;
+            }
         }
+        if (worst < 0) break;
+        removed[worst] = true;
     }
 
     // Build new node list, mapping old indices to new

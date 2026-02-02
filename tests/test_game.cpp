@@ -65,27 +65,24 @@ void test_build_factory() {
 
     Game game(config, {0, 1}, 42);
 
-    // Find a neighbor of node 0 that we can build on
-    const auto& nbrs = game.graph().nodes[0].neighbor_indices;
-    if (nbrs.empty()) {
-        printf("test_build_factory skipped (node 0 has no neighbors)\n");
+    // Find a non-capital neighbor of node 0
+    int target = -1;
+    for (int nb : game.graph().nodes[0].neighbor_indices) {
+        if (game.node_data()[nb].state != NodeState::CAPITAL) {
+            target = nb;
+            break;
+        }
+    }
+    if (target < 0) {
+        printf("test_build_factory skipped (no non-capital neighbor)\n");
         return;
     }
 
-    int target = nbrs[0];
-    // First, we need troops at that node. Put some there manually via the game:
-    // We'll send troops from node 0 to the neighbor.
-    // But the neighbor might not be adjacent to our destination. Let's just test
-    // building at a node we own. We need to give ownership first.
-
-    // Actually, you can only build on nodes you own. Let's give player 0 troops
-    // at the neighbor by running enough ticks and sending.
-    // For simplicity, let's test the validation: build should fail if we don't own the node.
+    // Try to build on a node we don't own — should fail
     std::vector<PlayerCommands> cmds(2);
     cmds[0].builds.push_back({target, NodeState::FACTORY});
     game.tick(1.0f, cmds);
 
-    // Should fail — player 0 doesn't own the target node
     assert(game.node_data()[target].state == NodeState::DEFAULT);
 
     printf("test_build_factory passed (correctly rejected build on unowned node)\n");
