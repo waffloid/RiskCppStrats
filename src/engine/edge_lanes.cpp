@@ -10,8 +10,7 @@ float compute_displacement(int count, float dt, float edge_length, const GameCon
 }
 
 static float aggregation_radius(int count, const GameConfig& config) {
-    return (config.radius_factor * static_cast<float>(count) + config.aggregation_buffer)
-           / 1.0f; // already in position-space if edge_length normalization needed, handled by caller
+    return config.radius_factor * std::sqrt(static_cast<float>(count)) + config.aggregation_buffer;
 }
 
 void insert_troop_group(EdgeLanes& el, int origin_node, int owner, int count,
@@ -74,14 +73,14 @@ static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_leng
 
         // Monotone optimization: if trailing is larger (slower), it can never
         // catch the leading group. Skip.
-        if (trailing.count >= leading.count) {
+        if (trailing.count > leading.count) {
             write = i;
             continue;
         }
 
         // Check distance (in position-space)
         float dist = leading.position - trailing.position;
-        float threshold = (config.radius_factor * static_cast<float>(leading.count)
+        float threshold = (config.radius_factor * std::sqrt(static_cast<float>(leading.count))
                           + config.aggregation_buffer) / edge_length;
 
         if (dist <= threshold) {

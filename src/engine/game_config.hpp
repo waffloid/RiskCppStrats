@@ -15,8 +15,8 @@ struct GameConfig {
     float displacement_c2 = 5.0f;
 
     // Combat
-    int attack_divisor = 100;
-    int defense_divisor = 1000;
+    int attack_divisor = 10;
+    int defense_divisor = 100;
     float fort_defense_mult = 1.2f;
     float artillery_attack_mult = 1.5f;
 
@@ -31,9 +31,12 @@ struct GameConfig {
     int cost_fort = 400;
     int cost_artillery = 4000;
 
+    // Neutral defenders on default nodes (0 = disabled, adds an extra neutral player)
+    int init_default_troops = 0;
+
     // Edge lanes
-    float radius_factor = 0.1f;
-    float aggregation_buffer = 1.0f;
+    float radius_factor = 0.001f;       // world-space: rf * sqrt(count) + buffer
+    float aggregation_buffer = 0.077f;   // ~0.08 at 10 troops, ~0.1 at 500, ~0.15 at 5000
 };
 
 #endif
