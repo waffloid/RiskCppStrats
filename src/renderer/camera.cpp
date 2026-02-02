@@ -38,7 +38,7 @@ void Camera2D_Custom::fit_to_graph(const Graph& graph, int screen_w, int screen_
 }
 
 void Camera2D_Custom::update() {
-    // Zoom toward mouse position
+    // Zoom: scroll wheel toward mouse, I/O keys toward center
     float wheel = GetMouseWheelMove();
     if (wheel != 0.0f) {
         Vector2 mouse_screen = GetMousePosition();
@@ -48,13 +48,19 @@ void Camera2D_Custom::update() {
         zoom_ *= factor;
         zoom_ = std::clamp(zoom_, 0.1f, 100.0f);
 
-        // After zoom, adjust offset so mouse_world stays under the cursor
-        // screen_to_world(mouse_screen) should still equal mouse_world
-        // mouse_world = offset_ + (mouse_screen - screen_center) / zoom_
-        // offset_ = mouse_world - (mouse_screen - screen_center) / zoom_
-        Vector2 screen_center = {screen_w_ * 0.5f, screen_h_ * 0.5f};
-        offset_.x = mouse_world.x - (mouse_screen.x - screen_center.x) / zoom_;
-        offset_.y = mouse_world.y - (mouse_screen.y - screen_center.y) / zoom_;
+        Vector2 new_world = screen_to_world(mouse_screen);
+        offset_.x -= (new_world.x - mouse_world.x);
+        offset_.y -= (new_world.y - mouse_world.y);
+    }
+    {
+        float key_zoom = 0.0f;
+        if (IsKeyDown(KEY_I)) key_zoom += 0.5f;
+        if (IsKeyDown(KEY_O)) key_zoom -= 0.5f;
+        if (key_zoom != 0.0f) {
+            float factor = (key_zoom > 0) ? 1.05f : 1.0f / 1.05f;
+            zoom_ *= factor;
+            zoom_ = std::clamp(zoom_, 0.1f, 100.0f);
+        }
     }
 
     // Middle-click drag pan
@@ -74,27 +80,54 @@ void Camera2D_Custom::update() {
         offset_.y = offset_at_drag_start_.y - dy / zoom_;
     }
 
-    // WASD pan
-    float pan_speed = 300.0f / zoom_;
+    // WASD pan (aligned with camera rotation)
+    float pan_speed = 75.0f;
     float dt = GetFrameTime();
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    offset_.y -= pan_speed * dt;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))   offset_.y += pan_speed * dt;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))   offset_.x -= pan_speed * dt;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))  offset_.x += pan_speed * dt;
+    float sx = 0.0f, sy = 0.0f;  // screen-space direction
+    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    sy -= 1.0f;
+    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))   sy += 1.0f;
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))   sx -= 1.0f;
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))  sx += 1.0f;
+    if (sx != 0.0f || sy != 0.0f) {
+        float rad = -rotation_ * (3.14159265f / 180.0f);
+        float cos_r = std::cos(rad);
+        float sin_r = std::sin(rad);
+        float wx = sx * cos_r - sy * sin_r;
+        float wy = sx * sin_r + sy * cos_r;
+        offset_.x += wx * pan_speed * dt;
+        offset_.y += wy * pan_speed * dt;
+    }
+
+    // Q/E rotation
+    float rot_speed = 90.0f; // degrees per second
+    if (IsKeyDown(KEY_Q)) rotation_ += rot_speed * dt;
+    if (IsKeyDown(KEY_E)) rotation_ -= rot_speed * dt;
 }
 
 Vector2 Camera2D_Custom::world_to_screen(Vector2 world) const {
     Vector2 screen_center = {screen_w_ * 0.5f, screen_h_ * 0.5f};
+    float dx = (world.x - offset_.x) * zoom_;
+    float dy = (world.y - offset_.y) * zoom_;
+    float rad = rotation_ * (3.14159265f / 180.0f);
+    float cos_r = std::cos(rad);
+    float sin_r = std::sin(rad);
     return {
-        screen_center.x + (world.x - offset_.x) * zoom_,
-        screen_center.y + (world.y - offset_.y) * zoom_
+        screen_center.x + dx * cos_r - dy * sin_r,
+        screen_center.y + dx * sin_r + dy * cos_r
     };
 }
 
 Vector2 Camera2D_Custom::screen_to_world(Vector2 screen) const {
     Vector2 screen_center = {screen_w_ * 0.5f, screen_h_ * 0.5f};
+    float sx = screen.x - screen_center.x;
+    float sy = screen.y - screen_center.y;
+    float rad = -rotation_ * (3.14159265f / 180.0f);
+    float cos_r = std::cos(rad);
+    float sin_r = std::sin(rad);
+    float rx = sx * cos_r - sy * sin_r;
+    float ry = sx * sin_r + sy * cos_r;
     return {
-        offset_.x + (screen.x - screen_center.x) / zoom_,
-        offset_.y + (screen.y - screen_center.y) / zoom_
+        offset_.x + rx / zoom_,
+        offset_.y + ry / zoom_
     };
 }

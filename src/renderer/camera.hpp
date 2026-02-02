@@ -19,11 +19,13 @@ public:
     Vector2 screen_to_world(Vector2 screen) const;
 
     float zoom() const { return zoom_; }
+    float rotation() const { return rotation_; }
     Vector2 offset() const { return offset_; }
 
 private:
     Vector2 offset_ = {0, 0};  // world position at screen center
     float zoom_ = 1.0f;
+    float rotation_ = 0.0f;    // degrees
     int screen_w_ = 800;
     int screen_h_ = 600;
     bool dragging_ = false;

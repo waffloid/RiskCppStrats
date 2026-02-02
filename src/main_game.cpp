@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
 
         // Draw
         BeginDrawing();
-        ClearBackground(Color{30, 30, 30, 255});
+        ClearBackground(Color{80, 120, 60, 255});  // grassy green
 
         renderer.draw(game, camera);
 
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Controls help
-        DrawText("+/-: speed  Space: pause  WASD/arrows: pan  Scroll: zoom  MMB: drag",
+        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  MMB: drag",
                  10, screen_h - 20, 10, DARKGRAY);
 
         EndDrawing();
