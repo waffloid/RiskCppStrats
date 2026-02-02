@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.20)
+project(CRisky LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# --- Engine library (no RayLib dependency) ---
+add_library(crisky_engine STATIC
+    src/engine/graph.cpp
+    src/engine/edge_lanes.cpp
+    src/engine/combat.cpp
+    src/engine/production.cpp
+    src/engine/routing.cpp
+    src/engine/game.cpp
+)
+target_include_directories(crisky_engine PUBLIC src/)
+
+# --- Headless binary ---
+add_executable(crisky_headless src/main_headless.cpp)
+target_link_libraries(crisky_headless PRIVATE crisky_engine)
+
+# --- RayLib (FetchContent) ---
+# include(FetchContent)
+# FetchContent_Declare(raylib
+#     GIT_REPOSITORY https://github.com/raysan5/raylib.git
+#     GIT_TAG 5.5
+# )
+# FetchContent_MakeAvailable(raylib)
+
+# --- Interactive game binary ---
+# add_executable(crisky_game src/main_game.cpp)
+# target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
+
+# --- Tests ---
+add_executable(test_graph tests/test_graph.cpp)
+target_link_libraries(test_graph PRIVATE crisky_engine)
+
+add_executable(test_edge_lanes tests/test_edge_lanes.cpp)
+target_link_libraries(test_edge_lanes PRIVATE crisky_engine)
+
+add_executable(test_combat tests/test_combat.cpp)
+target_link_libraries(test_combat PRIVATE crisky_engine)
+
+add_executable(test_game tests/test_game.cpp)
+target_link_libraries(test_game PRIVATE crisky_engine)
