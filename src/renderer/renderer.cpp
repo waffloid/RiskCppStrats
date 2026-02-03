@@ -299,10 +299,12 @@ void Renderer::draw_edges(const Game& game, const Camera2D_Custom& camera, float
         int num_nodes = graph.num_nodes();
         size_t n_edges = graph.edges.size();
 
-        if (zen_edge_colors_.size() != n_edges)
-            zen_edge_colors_.resize(n_edges);
+        if (zen_edge_troops_.size() != n_edges) {
+            zen_edge_troops_.resize(n_edges);
+            zen_edge_transit_.assign(n_edges, -1.0f);
+        }
 
-        constexpr float ema_alpha = 0.1f;
+        constexpr float ema_alpha = 0.08f;
 
         for (size_t ei = 0; ei < n_edges; ei++) {
             const auto& edge = graph.edges[ei];
@@ -335,8 +337,17 @@ void Renderer::draw_edges(const Game& game, const Camera2D_Custom& camera, float
                 hue_troops[p] = (ta + tb) / 2 + transit[p];
             }
 
-            Color target = zen_edge_color(hue_troops, np, transit_total, num_nodes);
-            Color col = zen_edge_colors_[ei].update(target, ema_alpha);
+            // EMA the hue troops and transit total, then compute color
+            zen_edge_troops_[ei].update(hue_troops, np, ema_alpha);
+            float ft = static_cast<float>(transit_total);
+            if (zen_edge_transit_[ei] < 0.0f) zen_edge_transit_[ei] = ft;
+            else zen_edge_transit_[ei] += ema_alpha * (ft - zen_edge_transit_[ei]);
+
+            int smoothed_hue[MAX_PLAYERS] = {};
+            zen_edge_troops_[ei].get(smoothed_hue, np);
+            int smoothed_transit = static_cast<int>(zen_edge_transit_[ei]);
+
+            Color col = zen_edge_color(smoothed_hue, np, smoothed_transit, num_nodes);
             DrawLineEx({sa.x + sox, sa.y + soy}, {sb.x + sox, sb.y + soy},
                        rc_.edge_outer_thickness * scale, scheme_->shadow);
             DrawLineEx(sa, sb, rc_.edge_outer_thickness * scale, col);
@@ -393,11 +404,11 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
         EndBlendMode();
     }
 
-    // Initialize per-node smoothed colors for zen mode
-    if (zen_mode_ && static_cast<int>(zen_node_colors_.size()) != graph.num_nodes())
-        zen_node_colors_.resize(graph.num_nodes());
+    // Initialize per-node smoothed troops for zen mode
+    if (zen_mode_ && static_cast<int>(zen_node_troops_.size()) != graph.num_nodes())
+        zen_node_troops_.resize(graph.num_nodes());
 
-    constexpr float node_ema_alpha = 0.1f;
+    constexpr float troop_ema_alpha = 0.08f;
 
     // Node circles, outlines, and state icons
     for (int i = 0; i < graph.num_nodes(); i++) {
@@ -411,12 +422,15 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
 
         Color fill;
         if (zen_mode_) {
-            int troops_arr[MAX_PLAYERS] = {};
+            int raw[MAX_PLAYERS] = {};
             int n_real = game.n_real_players();
-            for (int p = 0; p < n_real && p < MAX_PLAYERS && p < static_cast<int>(nd.troops.size()); p++)
-                troops_arr[p] = nd.troops[p];
-            Color target = zen_node_color(troops_arr, std::min(n_real, MAX_PLAYERS), graph.num_nodes());
-            fill = zen_node_colors_[i].update(target, node_ema_alpha);
+            int np = std::min(n_real, MAX_PLAYERS);
+            for (int p = 0; p < np && p < static_cast<int>(nd.troops.size()); p++)
+                raw[p] = nd.troops[p];
+            zen_node_troops_[i].update(raw, np, troop_ema_alpha);
+            int smoothed[MAX_PLAYERS] = {};
+            zen_node_troops_[i].get(smoothed, np);
+            fill = zen_node_color(smoothed, np, graph.num_nodes());
         } else {
             fill = color_for_player(nd.owner);
         }

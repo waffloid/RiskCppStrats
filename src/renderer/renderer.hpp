@@ -8,18 +8,29 @@
 #include <set>
 #include <vector>
 
-struct SmoothedColor {
-    float r = -1.0f, g = -1.0f, b = -1.0f;
+struct SmoothedTroops {
+    static constexpr int MAX_P = 8;
+    float troops[MAX_P] = {};
+    bool initialized = false;
 
-    Color update(Color target, float alpha) {
-        float tr = target.r / 255.0f, tg = target.g / 255.0f, tb = target.b / 255.0f;
-        if (r < 0.0f) { r = tr; g = tg; b = tb; }
-        else { r += alpha * (tr - r); g += alpha * (tg - g); b += alpha * (tb - b); }
-        return {
-            static_cast<unsigned char>(r * 255.0f),
-            static_cast<unsigned char>(g * 255.0f),
-            static_cast<unsigned char>(b * 255.0f), 255
-        };
+    void update(const int* raw, int n, float alpha) {
+        if (!initialized) {
+            for (int i = 0; i < n && i < MAX_P; i++) troops[i] = static_cast<float>(raw[i]);
+            initialized = true;
+        } else {
+            for (int i = 0; i < n && i < MAX_P; i++)
+                troops[i] += alpha * (static_cast<float>(raw[i]) - troops[i]);
+        }
+    }
+
+    // Write smoothed values as ints into out, return total
+    int get(int* out, int n) const {
+        int total = 0;
+        for (int i = 0; i < n && i < MAX_P; i++) {
+            out[i] = static_cast<int>(troops[i]);
+            total += out[i];
+        }
+        return total;
     }
 };
 
@@ -76,9 +87,10 @@ private:
     bool zen_mode_ = false;
     float zen_total_troops_ = 0.0f;
 
-    // Per-element smoothed colors for zen mode
-    std::vector<SmoothedColor> zen_edge_colors_;
-    std::vector<SmoothedColor> zen_node_colors_;
+    // Per-element smoothed troop counts for zen mode (EMA'd before color computation)
+    std::vector<SmoothedTroops> zen_node_troops_;
+    std::vector<SmoothedTroops> zen_edge_troops_;  // hue troops (endpoints + transit)
+    std::vector<float> zen_edge_transit_;           // smoothed transit total
 };
 
 #endif
