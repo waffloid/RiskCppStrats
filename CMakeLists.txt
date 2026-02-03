@@ -30,6 +30,7 @@ FetchContent_MakeAvailable(raylib)
 # --- Interactive game binary ---
 add_executable(crisky_game
     src/main_game.cpp
+    src/player/attention_ai.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )

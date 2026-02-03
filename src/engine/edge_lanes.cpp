@@ -16,6 +16,8 @@ static float aggregation_radius(int count, const GameConfig& config) {
 void insert_troop_group(EdgeLanes& el, int origin_node, int owner, int count,
                         int global_dest_node) {
     int lane_idx = (origin_node == el.node_a) ? 0 : 1;
+    auto& groups = el.lanes[lane_idx].groups;
+
     TroopGroup g;
     g.owner = owner;
     g.count = count;
@@ -26,7 +28,6 @@ void insert_troop_group(EdgeLanes& el, int origin_node, int owner, int count,
     g.time_elapsed = 0.0f;
 
     // Insert sorted by position (new group at 0.0 goes to front)
-    auto& groups = el.lanes[lane_idx].groups;
     auto it = std::lower_bound(groups.begin(), groups.end(), g,
         [](const TroopGroup& a, const TroopGroup& b) {
             return a.position < b.position;
@@ -58,7 +59,6 @@ static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_leng
     // Groups sorted by position ascending: index 0 = near origin, last = near dest.
     // Sweep from back toward front, checking adjacent pairs.
     // groups[write] is leading (ahead, higher position), groups[i] is trailing (behind).
-    // A trailing group can only catch a leading group if it's smaller (faster).
     int write = static_cast<int>(groups.size()) - 1;
     for (int i = static_cast<int>(groups.size()) - 2; i >= 0; i--) {
         auto& trailing = groups[i];
@@ -71,16 +71,10 @@ static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_leng
             continue;
         }
 
-        // Monotone optimization: if trailing is larger (slower), it can never
-        // catch the leading group. Skip.
-        if (trailing.count > leading.count) {
-            write = i;
-            continue;
-        }
-
         // Check distance (in position-space)
         float dist = leading.position - trailing.position;
-        float threshold = (config.radius_factor * std::sqrt(static_cast<float>(leading.count))
+        int max_count = std::max(leading.count, trailing.count);
+        float threshold = (config.radius_factor * std::sqrt(static_cast<float>(max_count))
                           + config.aggregation_buffer) / edge_length;
 
         if (dist <= threshold) {

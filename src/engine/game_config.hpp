@@ -35,8 +35,8 @@ struct GameConfig {
     int init_default_troops = 0;
 
     // Edge lanes
-    float radius_factor = 0.001f;       // world-space: rf * sqrt(count) + buffer
-    float aggregation_buffer = 0.077f;   // ~0.08 at 10 troops, ~0.1 at 500, ~0.15 at 5000
+    float radius_factor = 0.01f;        // world-space: rf * sqrt(count) + buffer
+    float aggregation_buffer = 1.0f;     // world-space merge distance; must exceed one tick's displacement
 };
 
 #endif

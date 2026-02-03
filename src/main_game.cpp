@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <vector>
 #include <memory>
 
@@ -7,6 +8,7 @@
 #include "engine/game.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
+#include "player/attention_ai.hpp"
 
 // Simple AI: sends troops to neighboring nodes, builds factories when affordable
 class SimpleAI : public PlayerInterface {
@@ -97,15 +99,34 @@ int main(int argc, char* argv[]) {
     // AIs: SimpleAI for real players, PassiveAI for neutral
     std::vector<std::unique_ptr<PlayerInterface>> ais;
     for (int i = 0; i < n_real; i++) {
-        ais.push_back(std::make_unique<SimpleAI>());
+        ais.push_back(std::make_unique<AttentionAI>(i));
     }
     for (int i = n_real; i < n_total; i++) {
         ais.push_back(std::make_unique<PassiveAI>());
     }
 
     // RayLib init
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
     InitWindow(screen_w, screen_h, "CRisky — Spectator");
     SetTargetFPS(60);
+
+    // Generate tileable noise background: base green + very subtle random offset
+    const int bg_tile = 256;
+    Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
+    Color* pixels = LoadImageColors(bg_img);
+    for (int i = 0; i < bg_tile * bg_tile; i++) {
+        int noise = static_cast<int>(pixels[i].r) - 128; // -128..+127
+        int offset = noise / 40;                          // -3..+3 very subtle
+        pixels[i].r = static_cast<unsigned char>(std::clamp(50 + offset, 0, 255));
+        pixels[i].g = static_cast<unsigned char>(std::clamp(80 + offset, 0, 255));
+        pixels[i].b = static_cast<unsigned char>(std::clamp(40 + offset, 0, 255));
+        pixels[i].a = 255;
+    }
+    UnloadImage(bg_img);
+    bg_img = {pixels, bg_tile, bg_tile, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    Texture2D bg_tex = LoadTextureFromImage(bg_img);
+    SetTextureWrap(bg_tex, TEXTURE_WRAP_REPEAT);
+    UnloadImageColors(pixels);
 
     Camera2D_Custom camera;
     camera.fit_to_graph(game.graph(), screen_w, screen_h);
@@ -149,7 +170,21 @@ int main(int argc, char* argv[]) {
 
         // Draw
         BeginDrawing();
-        ClearBackground(Color{80, 120, 60, 255});  // grassy green
+        ClearBackground(Color{50, 80, 40, 255});
+
+        // Tile noise background, scrolling with camera
+        {
+            Vector2 cam_off = camera.offset();
+            float ox = std::fmod(cam_off.x * camera.zoom(), static_cast<float>(bg_tile));
+            float oy = std::fmod(cam_off.y * camera.zoom(), static_cast<float>(bg_tile));
+            if (ox > 0) ox -= bg_tile;
+            if (oy > 0) oy -= bg_tile;
+            for (float y = oy; y < screen_h; y += bg_tile) {
+                for (float x = ox; x < screen_w; x += bg_tile) {
+                    DrawTexture(bg_tex, static_cast<int>(x), static_cast<int>(y), WHITE);
+                }
+            }
+        }
 
         renderer.draw(game, camera);
 
@@ -170,6 +205,7 @@ int main(int argc, char* argv[]) {
         EndDrawing();
     }
 
+    UnloadTexture(bg_tex);
     CloseWindow();
     return 0;
 }

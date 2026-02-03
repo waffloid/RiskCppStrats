@@ -175,6 +175,71 @@ void test_retreat_returns_to_origin() {
     printf("test_retreat_returns_to_origin passed\n");
 }
 
+// Simulate the real scenario: an AI sends ~50 troops every tick at small dt.
+// After many ticks, the number of groups on the edge must stay bounded,
+// not grow linearly with tick count.
+bool test_repeated_sends_aggregate() {
+    GameConfig config;  // default config: radius_factor=0.001, aggregation_buffer=0.077
+    float edge_length = 15.0f;  // typical edge length
+    auto el = make_edge(0, 1, edge_length);
+
+    float dt = 0.25f;  // slow game speed
+    int send_amount = 50;
+    int num_ticks = 100;
+
+    std::vector<Arrival> arrivals;
+    for (int t = 0; t < num_ticks; t++) {
+        // AI sends troops every tick
+        insert_troop_group(el, 0, /*owner=*/0, send_amount, /*global_dest=*/1);
+
+        // Advance + aggregate
+        arrivals.clear();
+        update_edge(el, dt, config, arrivals);
+    }
+
+    int group_count = static_cast<int>(el.lanes[0].groups.size());
+    // With proper aggregation, groups near the origin should merge.
+    // A reasonable bound: edge_length / aggregation_buffer ~ 200, but in practice
+    // groups spread out and arrive, so far fewer should exist. Certainly not 100.
+    // Be generous: at most 10 groups on a single lane.
+    printf("test_repeated_sends_aggregate: %d groups after %d ticks (want <= 10)\n",
+           group_count, num_ticks);
+    if (group_count > 10) {
+        printf("FAILED: too many groups\n");
+        return false;
+    }
+    printf("test_repeated_sends_aggregate passed\n");
+    return true;
+}
+
+// Same test at normal speed (dt=1.0) — should also stay bounded.
+bool test_repeated_sends_aggregate_normal_speed() {
+    GameConfig config;
+    float edge_length = 15.0f;
+    auto el = make_edge(0, 1, edge_length);
+
+    float dt = 1.0f;
+    int send_amount = 50;
+    int num_ticks = 100;
+
+    std::vector<Arrival> arrivals;
+    for (int t = 0; t < num_ticks; t++) {
+        insert_troop_group(el, 0, 0, send_amount, 1);
+        arrivals.clear();
+        update_edge(el, dt, config, arrivals);
+    }
+
+    int group_count = static_cast<int>(el.lanes[0].groups.size());
+    printf("test_repeated_sends_aggregate_normal_speed: %d groups after %d ticks (want <= 10)\n",
+           group_count, num_ticks);
+    if (group_count > 10) {
+        printf("FAILED: too many groups\n");
+        return false;
+    }
+    printf("test_repeated_sends_aggregate_normal_speed passed\n");
+    return true;
+}
+
 int main() {
     test_basic_movement();
     test_arrival();
@@ -183,6 +248,13 @@ int main() {
     test_aggregation();
     test_no_aggregation_different_owners();
     test_retreat_returns_to_origin();
+    int fails = 0;
+    if (!test_repeated_sends_aggregate()) fails++;
+    if (!test_repeated_sends_aggregate_normal_speed()) fails++;
+    if (fails > 0) {
+        printf("%d aggregation tests FAILED\n", fails);
+        return 1;
+    }
     printf("All edge lane tests passed\n");
     return 0;
 }
