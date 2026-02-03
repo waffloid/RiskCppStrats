@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(CRisky LANGUAGES CXX)
+project(RiskCppStrats LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -36,6 +36,15 @@ add_executable(crisky_game
     src/renderer/camera.cpp
 )
 target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
+
+# --- Screenshot tool ---
+add_executable(crisky_screenshots
+    src/screenshot_themes.cpp
+    src/player/attention_ai.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
+)
+target_link_libraries(crisky_screenshots PRIVATE crisky_engine raylib)
 
 # --- Tests ---
 add_executable(test_graph tests/test_graph.cpp)

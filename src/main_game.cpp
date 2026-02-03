@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
 
     // RayLib init
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
-    InitWindow(screen_w, screen_h, "CRisky — Player vs AttentionAI");
+    InitWindow(screen_w, screen_h, "RiskC++ Strats");
     SetTargetFPS(60);
 
     // Generate tileable noise background

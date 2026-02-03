@@ -1,4 +1,4 @@
-# CRisky
+# RiskC++ Strats
 
 A C++ remake of [Risky Strats](https://www.roblox.com/games/4278596942/Risky-Strats) (Roblox) — a real-time strategy game played on geometric graphs. Built as both a playable game and a headless environment for reinforcement learning.
 
@@ -6,7 +6,7 @@ A C++ remake of [Risky Strats](https://www.roblox.com/games/4278596942/Risky-Str
 
 ## The Game
 
-Players control territory on a procedurally generated graph. Nodes produce troops, troops travel along edges, and combat resolves when opposing forces share a node. Build structures to boost production, strengthen defenses, or project power.
+Players control territory on a graph. Nodes produce troops, troops travel along edges, and combat resolves when opposing forces share a node. Build structures to boost production, strengthen defenses, or project power.
 
 **Structures** (built by spending troops):
 - **Factory** (500) — produces 1 troop/tick
@@ -17,7 +17,7 @@ Players control territory on a procedurally generated graph. Nodes produce troop
 
 **Troop movement**: larger groups move slower (`speed = c / cbrt(count)`). Opposing groups on the same edge force the smaller group to retreat. Routing uses greedy dot-product similarity toward a global target.
 
-**Combat**: continuous attrition when multiple players share a node. Attack scales at `troops/100`, defense at `troops/1000`.
+**Combat**: continuous attrition when multiple players share a node. Attack scales at `troops/10`, defense at `troops/100`.
 
 ## Building
 
@@ -81,18 +81,4 @@ src/
     attention_ai.cpp   # Attention-mechanism AI opponent
 ```
 
-The engine library (`crisky_engine`) has zero rendering dependencies and can be linked independently for headless simulation or RL training.
-
-## RL Environment
-
-The headless binary (`crisky_headless`) runs the full game simulation without graphics. The engine exposes a clean interface:
-
-- **State**: node ownership, troop vectors, structure types, edge troop positions
-- **Actions**: `TroopCommand{from, to, count}`, `BuildCommand{node, structure}`
-- **Deterministic**: same seed + same actions = same outcome
-
 The game tick is a single `game.tick(dt, commands)` call. AI players implement `PlayerInterface::decide()`.
-
-## License
-
-Not yet specified.
