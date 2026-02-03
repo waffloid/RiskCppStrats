@@ -69,6 +69,27 @@ public:
     void decide(const Game& /*game*/, int /*player_id*/, PlayerCommands& /*out*/) override {}
 };
 
+static const char* parse_record_arg(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--record=", 9) == 0) {
+            return argv[i] + 9;
+        }
+        if (strcmp(argv[i], "--record") == 0) {
+            return "gameplay.mp4";
+        }
+    }
+    return nullptr;
+}
+
+static float parse_record_delay(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--record-delay=", 15) == 0) {
+            return static_cast<float>(atof(argv[i] + 15));
+        }
+    }
+    return 0.0f;
+}
+
 static int parse_scheme_arg(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strncmp(argv[i], "--scheme=", 9) == 0) {
@@ -121,6 +142,8 @@ int main(int argc, char* argv[]) {
     if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));
 
     int scheme_idx = parse_scheme_arg(argc, argv);
+    const char* record_file = parse_record_arg(argc, argv);
+    float record_delay = parse_record_delay(argc, argv);
 
     int screen_w = 1280;
     int screen_h = 800;
@@ -128,8 +151,8 @@ int main(int argc, char* argv[]) {
     // Game setup
     GameConfig config;
     config.poisson_intensity = 0.04f;
-    config.region_width = 50.0f;
-    config.region_height = 50.0f;
+    config.region_width = 158.0f;
+    config.region_height = 158.0f;
     config.edge_distance_threshold = 15.0f;
     config.max_neighbors = 7;
     config.init_default_troops = 25;
@@ -140,7 +163,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::vector<int> capitals = {0, 1};
+    std::vector<int> capitals = {0, 1, 2};
     int n_real = static_cast<int>(capitals.size());
 
     Game game(config, capitals, seed);
@@ -148,15 +171,11 @@ int main(int argc, char* argv[]) {
     printf("Game: %d real players (+%d neutral), %d nodes, %d edges\n",
            n_real, n_total - n_real, game.graph().num_nodes(), game.graph().num_edges());
 
-    // Players: HumanPlayer for player 0, AttentionAI for player 1, PassiveAI for neutral
+    // All AI players
     std::vector<std::unique_ptr<PlayerInterface>> ais;
-    std::unique_ptr<HumanPlayer> human_player;
-    if (n_real > 0) {
-        human_player = std::make_unique<HumanPlayer>();
-        ais.push_back(std::make_unique<AttentionAI>(0));  // will be replaced by human
-    }
-    if (n_real > 1) {
-        ais.push_back(std::make_unique<AttentionAI>(1));
+    std::unique_ptr<HumanPlayer> human_player; // nullptr — spectator mode
+    for (int i = 0; i < n_real; i++) {
+        ais.push_back(std::make_unique<AttentionAI>(i));
     }
     for (int i = n_real; i < n_total; i++) {
         ais.push_back(std::make_unique<PassiveAI>());
@@ -177,11 +196,18 @@ int main(int argc, char* argv[]) {
 
     Renderer renderer(screen_w, screen_h, &COLOR_SCHEMES[scheme_idx]);
 
+    // Recording: pipe raw RGBA frames to ffmpeg (opened after delay elapses)
+    FILE* ffmpeg_pipe = nullptr;
+    int record_w = 0, record_h = 0;
+    float record_elapsed = 0.0f;
+    bool record_started = false;
+
     // Tick timing
     float game_speed = 1.0f;  // ticks per frame at 60 FPS
     float dt = 0.25f;         // one discrete tick
     bool paused = false;
     int tick_count = 0;
+    int game_over_frames = 0; // count frames after game over for auto-exit
 
     // Scheme switch notification
     float scheme_notify_timer = 0.0f;
@@ -217,6 +243,10 @@ int main(int argc, char* argv[]) {
             regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
             scheme_notify_timer = 2.0f;
         }
+        if (IsKeyPressed(KEY_Z)) {
+            renderer.set_zen_mode(!renderer.zen_mode());
+        }
+
         if (scheme_notify_timer > 0.0f) {
             scheme_notify_timer -= GetFrameTime();
         }
@@ -263,9 +293,10 @@ int main(int argc, char* argv[]) {
         renderer.draw_scanlines(screen_w, screen_h);
 
         // HUD
-        char hud[128];
-        snprintf(hud, sizeof(hud), "Tick: %d  Speed: %.2fx  FPS: %d%s  [%s]",
+        char hud[160];
+        snprintf(hud, sizeof(hud), "Tick: %d  Speed: %.2fx  FPS: %d%s%s  [%s]",
                  tick_count, game_speed, GetFPS(), paused ? "  [PAUSED]" : "",
+                 renderer.zen_mode() ? "  [ZEN]" : "",
                  COLOR_SCHEMES[scheme_idx].name);
         DrawText(hud, 10, 10, 16, WHITE);
 
@@ -286,10 +317,51 @@ int main(int argc, char* argv[]) {
         // Controls help
         DrawText("CLICK: select  SHIFT+CLICK: add/toggle  ALT+CLICK: deselect  DRAG: circle select  SHIFT/ALT+DRAG: add/remove",
                  10, screen_h - 30, 10, DARKGRAY);
-        DrawText("QERF: send troops  1-4: build (Factory/Fort/Power/Arty)  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes",
+        DrawText("QERF: send troops  1-4: build (Factory/Fort/Power/Arty)  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes  Z: zen",
                  10, screen_h - 15, 10, DARKGRAY);
 
         EndDrawing();
+
+        // Start recording after delay
+        if (record_file && !record_started) {
+            record_elapsed += GetFrameTime();
+            if (record_elapsed >= record_delay) {
+                record_started = true;
+                record_w = GetRenderWidth();
+                record_h = GetRenderHeight();
+                char cmd[512];
+                snprintf(cmd, sizeof(cmd),
+                    "ffmpeg -y -f rawvideo -pix_fmt rgba -s %dx%d -r 60 "
+                    "-i - -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \"%s\"",
+                    record_w, record_h, record_file);
+                ffmpeg_pipe = popen(cmd, "w");
+                if (!ffmpeg_pipe) {
+                    printf("Failed to open ffmpeg pipe for recording\n");
+                    record_file = nullptr;
+                } else {
+                    printf("Recording to %s (%dx%d @ 60fps, started after %.1fs delay)\n",
+                           record_file, record_w, record_h, record_delay);
+                }
+            }
+        }
+
+        // Record frame
+        if (ffmpeg_pipe) {
+            Image screen_img = LoadImageFromScreen();
+            fwrite(screen_img.data, 1, record_w * record_h * 4, ffmpeg_pipe);
+            UnloadImage(screen_img);
+        }
+
+        // Auto-exit in record mode after game over
+        if (record_file && game.is_game_over()) {
+            game_over_frames++;
+            if (game_over_frames > 180) break; // 3 seconds at 60fps
+        }
+    }
+
+    if (ffmpeg_pipe) {
+        pclose(ffmpeg_pipe);
+        printf("Recording saved to %s\n", record_file);
     }
 
     UnloadTexture(bg_tex);

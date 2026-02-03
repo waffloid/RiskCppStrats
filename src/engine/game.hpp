@@ -26,6 +26,7 @@ public:
     const std::vector<EdgeLanes>& edge_lanes() const { return edge_lanes_; }
     bool is_alive(int player_id) const { return alive_[player_id]; }
     int n_players() const { return n_players_; }
+    int n_real_players() const { return n_real_players_; }
     float time() const { return time_; }
 
     bool is_game_over() const;
