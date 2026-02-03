@@ -33,6 +33,14 @@ struct ColorScheme {
     int gradient_num_stops;                   // For EFFECT_GRADIENT_BG (0 = unused)
     float glow_radius_mult;  // For EFFECT_GLOW (multiplier of node radius)
     float glow_intensity;    // For EFFECT_GLOW (alpha value 0-1)
+
+    // Computed: high-contrast system color (white or black) based on background luminance
+    // Perceptual luminance is non-linear; threshold at ~75/255 so most mid-tone
+    // and light backgrounds get dark SYS, only truly dark ones get white.
+    Color sys_color() const {
+        float lum = 0.299f * background.r + 0.587f * background.g + 0.114f * background.b;
+        return (lum > 75.0f) ? Color{0, 0, 0, 128} : Color{255, 255, 255, 128};
+    }
 };
 
 enum ColorSchemeId {

@@ -3,13 +3,14 @@
 
 #include "player_interface.hpp"
 #include "renderer/camera.hpp"
+#include "renderer/color_scheme.hpp"
 #include <raylib.h>
 #include <set>
 
 // Configuration for troop send hotkeys (Q, E, R, F)
 struct TroopSendConfig {
-    int fixed_1 = 50;          // Q: fixed amount
-    int fixed_2 = 250;         // E: fixed amount
+    int fixed_1 = 501;         // Q: fixed amount
+    int fixed_2 = 2501;        // E: fixed amount
     float percent_1 = 0.5f;    // R: percentage of garrison
     float percent_2 = 1.0f;    // F: percentage of garrison
 };
@@ -28,7 +29,11 @@ public:
 
     // Render UI: selected nodes, drag circle, etc.
     void render(const Camera2D_Custom& camera, int screen_w, int screen_h,
-               const class Game& game, int player_id) const;
+               const class Game& game, int player_id,
+               const ColorScheme& scheme) const;
+
+    // Access selected nodes for rendering layers
+    const std::set<int>& selected_nodes() const { return selected_nodes_; }
 
     // Config
     TroopSendConfig troop_send_config;
@@ -39,13 +44,15 @@ private:
     int pending_send_count_ = 0;       // troops queued to send
     int pending_send_source_ = -1;     // source node for queued send
     bool pending_build_ = false;       // queue a structure build
+    int pending_build_node_ = -1;      // node to build on (hovered)
     NodeState pending_structure_ = NodeState::DEFAULT;
 
     // Drag state
     Vector2 drag_start_ = {0, 0};
     Vector2 drag_current_ = {0, 0};
     bool is_dragging_ = false;
-    bool is_alt_dragging_ = false;  // alt-drag deselects
+    bool is_alt_dragging_ = false;    // alt-drag deselects
+    bool is_shift_dragging_ = false;  // shift-drag unions
 
     // Helper: find node at screen position
     int node_at_screen_pos(Vector2 screen_pos, const Camera2D_Custom& camera,
@@ -57,6 +64,10 @@ private:
 
     // Helper: clear selection
     void clear_selection();
+
+    // Helper: draw dashed circle
+    static void draw_dashed_circle(Vector2 center, float radius, float thickness,
+                                   Color color, int segments = 32, float dash_ratio = 0.6f);
 };
 
 #endif

@@ -98,10 +98,10 @@ void Camera2D_Custom::update() {
         offset_.y += wy * pan_speed * dt;
     }
 
-    // Q/E rotation
+    // K/L rotation
     float rot_speed = 90.0f; // degrees per second
-    if (IsKeyDown(KEY_Q)) rotation_ += rot_speed * dt;
-    if (IsKeyDown(KEY_E)) rotation_ -= rot_speed * dt;
+    if (IsKeyDown(KEY_K)) rotation_ += rot_speed * dt;
+    if (IsKeyDown(KEY_L)) rotation_ -= rot_speed * dt;
 }
 
 Vector2 Camera2D_Custom::world_to_screen(Vector2 world) const {

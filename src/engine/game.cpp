@@ -87,7 +87,8 @@ bool Game::validate_build(int player_id, const BuildCommand& cmd) const {
     if (cmd.node_idx < 0 || cmd.node_idx >= graph_.num_nodes()) return false;
     const auto& nd = node_data_[cmd.node_idx];
     if (nd.owner != player_id) return false;
-    if (nd.state != NodeState::DEFAULT) return false; // can only build on default nodes
+    if (nd.state == cmd.structure) return false; // already this type
+    if (nd.state == NodeState::CAPITAL) return false; // can't build over capital
     int cost = building_cost(cmd.structure);
     if (cost <= 0) return false;
     if (nd.troops[player_id] < cost + 1) return false; // must keep at least 1 troop to hold ownership

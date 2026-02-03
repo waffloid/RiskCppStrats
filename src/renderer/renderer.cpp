@@ -8,12 +8,34 @@ Renderer::Renderer(int screen_w, int screen_h, const ColorScheme* scheme)
 {
 }
 
-void Renderer::draw(const Game& game, const Camera2D_Custom& camera) {
+void Renderer::draw(const Game& game, const Camera2D_Custom& camera,
+                    const std::set<int>* selected_nodes) {
     if (base_zoom_ <= 0.0f) base_zoom_ = camera.zoom();
     float scale = camera.zoom() / base_zoom_;
+
+    // Layer order: edges → troop groups → node circles → selection halos → labels
     draw_edges(game, camera, scale);
     draw_troop_groups(game, camera, scale);
-    draw_nodes(game, camera, scale);
+    draw_node_circles(game, camera, scale);
+    if (selected_nodes && !selected_nodes->empty()) {
+        draw_selection_halos(game, camera, scale, *selected_nodes);
+    }
+    draw_node_labels(game, camera, scale);
+}
+
+void Renderer::draw_selection_halos(const Game& game, const Camera2D_Custom& camera,
+                                     float scale, const std::set<int>& selected_nodes) {
+    const auto& graph = game.graph();
+    Color sys = scheme_->sys_color();
+    float r = rc_.node_radius * scale;
+
+    for (int node_idx : selected_nodes) {
+        const auto& node = graph.nodes[node_idx];
+        Vector2 sp = camera.world_to_screen({node.x, node.y});
+        // Thick halo that touches the node edge and extends outward
+        float thickness = std::max(2.0f, r * 0.25f);
+        DrawRing(sp, r, r + thickness, 0.0f, 360.0f, 64, sys);
+    }
 }
 
 void Renderer::draw_background(int screen_w, int screen_h,
@@ -65,7 +87,7 @@ Color Renderer::color_for_player(int owner) const {
 }
 
 void Renderer::draw_state_icon(NodeState state, Vector2 center, float radius) const {
-    Color icon_col = scheme_->state_icon;
+    Color icon_col = scheme_->sys_color();
     float s = radius * 0.55f;
 
     switch (state) {
@@ -154,7 +176,7 @@ void Renderer::draw_edges(const Game& game, const Camera2D_Custom& camera, float
     }
 }
 
-void Renderer::draw_nodes(const Game& game, const Camera2D_Custom& camera, float scale) {
+void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera, float scale) {
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
     float r = rc_.node_radius * scale;
@@ -178,7 +200,7 @@ void Renderer::draw_nodes(const Game& game, const Camera2D_Custom& camera, float
         EndBlendMode();
     }
 
-    // Normal rendering
+    // Node circles, outlines, and state icons
     for (int i = 0; i < graph.num_nodes(); i++) {
         const auto& node = graph.nodes[i];
         const auto& nd = nodes_data[i];
@@ -193,6 +215,18 @@ void Renderer::draw_nodes(const Game& game, const Camera2D_Custom& camera, float
         DrawCircleLinesV(sp, r, scheme_->node_outline);
 
         draw_state_icon(nd.state, sp, r);
+    }
+}
+
+void Renderer::draw_node_labels(const Game& game, const Camera2D_Custom& camera, float scale) {
+    const auto& graph = game.graph();
+    const auto& nodes_data = game.node_data();
+    float r = rc_.node_radius * scale;
+
+    for (int i = 0; i < graph.num_nodes(); i++) {
+        const auto& node = graph.nodes[i];
+        const auto& nd = nodes_data[i];
+        Vector2 sp = camera.world_to_screen({node.x, node.y});
 
         struct TroopEntry { int player; int count; };
         TroopEntry entries[8];
@@ -221,13 +255,11 @@ void Renderer::draw_nodes(const Game& game, const Camera2D_Custom& camera, float
             int y = static_cast<int>(sp.y + r + 2);
             for (int e = 0; e < n_entries; e++) {
                 if (e > 0) {
-                    DrawText("/", x + space_w + 1, y + 1, font_troop, scheme_->shadow);
-                    DrawText("/", x + space_w, y, font_troop, scheme_->text_separator);
+                    draw_outlined_text("/", x + space_w, y, font_troop, scheme_->text_separator);
                     x += slash_w + space_w * 2;
                 }
-                DrawText(bufs[e], x + 1, y + 1, font_troop, scheme_->shadow);
-                DrawText(bufs[e], x, y, font_troop,
-                         color_for_player(entries[e].player));
+                draw_outlined_text(bufs[e], x, y, font_troop,
+                                   color_for_player(entries[e].player));
                 x += widths[e];
             }
         }
@@ -281,9 +313,21 @@ void Renderer::draw_troop_groups(const Game& game, const Camera2D_Custom& camera
                 int tw = MeasureText(buf, font_grp);
                 int tx = static_cast<int>(sp.x) - tw / 2;
                 int ty = static_cast<int>(sp.y + dot_r + 2);
-                DrawText(buf, tx + 1, ty + 1, font_grp, scheme_->shadow);
-                DrawText(buf, tx, ty, font_grp, c);
+                draw_outlined_text(buf, tx, ty, font_grp, c);
             }
         }
     }
+}
+
+void Renderer::draw_outlined_text(const char* text, int x, int y, int font_size, Color fg) const {
+    // Outline contrasts with the foreground text color
+    float lum = 0.299f * fg.r + 0.587f * fg.g + 0.114f * fg.b;
+    Color outline = (lum > 75.0f) ? Color{0, 0, 0, 128} : Color{255, 255, 255, 128};
+    for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            if (dx == 0 && dy == 0) continue;
+            DrawText(text, x + dx, y + dy, font_size, outline);
+        }
+    }
+    DrawText(text, x, y, font_size, fg);
 }

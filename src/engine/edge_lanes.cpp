@@ -3,7 +3,7 @@
 #include <cmath>
 
 float compute_displacement(int count, float dt, float edge_length, const GameConfig& config) {
-    float raw = (config.displacement_c1 + config.displacement_c2 / static_cast<float>(count)) * dt;
+    float raw = (config.displacement_c2 / std::cbrt(static_cast<float>(count))) * dt;
     float clamped = std::min(raw, dt);
     // Convert from world-space displacement to position-space (fraction of edge)
     return clamped / edge_length;

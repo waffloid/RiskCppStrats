@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
 
     // Tick timing
     float game_speed = 1.0f;  // ticks per frame at 60 FPS
-    float dt = 1.0f;          // one discrete tick
+    float dt = 0.25f;         // one discrete tick
     bool paused = false;
     int tick_count = 0;
 
@@ -204,15 +204,7 @@ int main(int argc, char* argv[]) {
             paused = !paused;
         }
 
-        // Color scheme switching: 1-9 for first 9, [ and ] to cycle all
-        for (int k = 0; k < NUM_COLOR_SCHEMES && k < 9; k++) {
-            if (IsKeyPressed(KEY_ONE + k)) {
-                scheme_idx = k;
-                renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
-                regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
-                scheme_notify_timer = 2.0f;
-            }
-        }
+        // Color scheme switching: [ and ] to cycle
         if (IsKeyPressed(KEY_RIGHT_BRACKET)) {
             scheme_idx = (scheme_idx + 1) % NUM_COLOR_SCHEMES;
             renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
@@ -225,13 +217,6 @@ int main(int argc, char* argv[]) {
             regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
             scheme_notify_timer = 2.0f;
         }
-        if (IsKeyPressed(KEY_ZERO)) {
-            scheme_idx = 0;
-            renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
-            regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
-            scheme_notify_timer = 2.0f;
-        }
-
         if (scheme_notify_timer > 0.0f) {
             scheme_notify_timer -= GetFrameTime();
         }
@@ -265,11 +250,13 @@ int main(int argc, char* argv[]) {
         // Draw background (gradient for Retrowave, tiled noise for others)
         renderer.draw_background(screen_w, screen_h, camera, bg_tex);
 
-        renderer.draw(game, camera);
+        // Pass selection to renderer so halos draw below edges
+        const std::set<int>* sel = human_player ? &human_player->selected_nodes() : nullptr;
+        renderer.draw(game, camera, sel);
 
-        // Human player UI (selected nodes, drag circle, etc.)
+        // Human player overlay UI (drag circle)
         if (human_player) {
-            human_player->render(camera, screen_w, screen_h, game, 0);
+            human_player->render(camera, screen_w, screen_h, game, 0, COLOR_SCHEMES[scheme_idx]);
         }
 
         // Scanline overlay (Terminal theme)
@@ -297,9 +284,9 @@ int main(int argc, char* argv[]) {
         }
 
         // Controls help
-        DrawText("DRAG: select nodes  ALT+DRAG: deselect  CLICK: toggle  ALT+CLICK: deselect  QERF: send troops  BPX C: build",
+        DrawText("CLICK: select  SHIFT+CLICK: add/toggle  ALT+CLICK: deselect  DRAG: circle select  SHIFT/ALT+DRAG: add/remove",
                  10, screen_h - 30, 10, DARKGRAY);
-        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  [/]: cycle themes",
+        DrawText("QERF: send troops  1-4: build (Factory/Fort/Power/Arty)  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes",
                  10, screen_h - 15, 10, DARKGRAY);
 
         EndDrawing();
