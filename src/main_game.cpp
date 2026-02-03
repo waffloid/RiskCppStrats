@@ -11,6 +11,7 @@
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
 #include "player/attention_ai.hpp"
+#include "player/human_player.hpp"
 
 // Simple AI: sends troops to neighboring nodes, builds factories when affordable
 class SimpleAI : public PlayerInterface {
@@ -147,10 +148,15 @@ int main(int argc, char* argv[]) {
     printf("Game: %d real players (+%d neutral), %d nodes, %d edges\n",
            n_real, n_total - n_real, game.graph().num_nodes(), game.graph().num_edges());
 
-    // AIs: SimpleAI for real players, PassiveAI for neutral
+    // Players: HumanPlayer for player 0, AttentionAI for player 1, PassiveAI for neutral
     std::vector<std::unique_ptr<PlayerInterface>> ais;
-    for (int i = 0; i < n_real; i++) {
-        ais.push_back(std::make_unique<AttentionAI>(i));
+    std::unique_ptr<HumanPlayer> human_player;
+    if (n_real > 0) {
+        human_player = std::make_unique<HumanPlayer>();
+        ais.push_back(std::make_unique<AttentionAI>(0));  // will be replaced by human
+    }
+    if (n_real > 1) {
+        ais.push_back(std::make_unique<AttentionAI>(1));
     }
     for (int i = n_real; i < n_total; i++) {
         ais.push_back(std::make_unique<PassiveAI>());
@@ -158,7 +164,7 @@ int main(int argc, char* argv[]) {
 
     // RayLib init
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
-    InitWindow(screen_w, screen_h, "CRisky — Spectator");
+    InitWindow(screen_w, screen_h, "CRisky — Player vs AttentionAI");
     SetTargetFPS(60);
 
     // Generate tileable noise background
@@ -230,13 +236,22 @@ int main(int argc, char* argv[]) {
             scheme_notify_timer -= GetFrameTime();
         }
 
+        // Process human player input (every frame, not just on ticks)
+        if (human_player) {
+            human_player->process_input(camera, screen_w, screen_h, game, 0);
+        }
+
         // One tick per frame
         if (!paused && !game.is_game_over()) {
             float frame_dt = dt * game_speed;
             for (int p = 0; p < n_total; p++) {
                 commands[p] = PlayerCommands{};
                 if (game.is_alive(p)) {
-                    ais[p]->decide(game, p, commands[p]);
+                    if (p == 0 && human_player) {
+                        human_player->decide(game, p, commands[p]);
+                    } else {
+                        ais[p]->decide(game, p, commands[p]);
+                    }
                 }
             }
             game.tick(frame_dt, commands);
@@ -251,6 +266,11 @@ int main(int argc, char* argv[]) {
         renderer.draw_background(screen_w, screen_h, camera, bg_tex);
 
         renderer.draw(game, camera);
+
+        // Human player UI (selected nodes, drag circle, etc.)
+        if (human_player) {
+            human_player->render(camera, screen_w, screen_h, game, 0);
+        }
 
         // Scanline overlay (Terminal theme)
         renderer.draw_scanlines(screen_w, screen_h);
@@ -277,8 +297,10 @@ int main(int argc, char* argv[]) {
         }
 
         // Controls help
-        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  [/]: cycle themes  0-9: select theme",
-                 10, screen_h - 20, 10, DARKGRAY);
+        DrawText("DRAG: select nodes  ALT+DRAG: deselect  CLICK: toggle  ALT+CLICK: deselect  QERF: send troops  BPX C: build",
+                 10, screen_h - 30, 10, DARKGRAY);
+        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  [/]: cycle themes",
+                 10, screen_h - 15, 10, DARKGRAY);
 
         EndDrawing();
     }

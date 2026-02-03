@@ -102,63 +102,47 @@ static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_leng
 //   lane[0] groups have position in [0, 1], moving toward 1
 //   lane[1] groups have position in [0, 1], but they move from node_b (pos 0 in their frame = pos 1 in edge frame)
 // So lane[1] group at position p in its frame is at position (1 - p) in edge frame.
-static void resolve_collisions(Lane& fwd, Lane& bwd, const GameConfig& config,
-                               float edge_length) {
+static void resolve_collisions(EdgeLanes& el, const GameConfig& config) {
+    Lane& fwd = el.lanes[0];
+    Lane& bwd = el.lanes[1];
     if (fwd.groups.empty() || bwd.groups.empty()) return;
 
-    // fwd: sorted by position ascending, frontmost is last (highest position)
-    // bwd: sorted by position ascending in its own frame, frontmost is last
-    // In edge frame: fwd front is at fwd.back().position
-    //                bwd front is at 1.0 - bwd.back().position
-
-    bool changed = true;
-    while (changed) {
-        changed = false;
-        if (fwd.groups.empty() || bwd.groups.empty()) break;
-
-        auto& fwd_front = fwd.groups.back();
-        auto& bwd_front = bwd.groups.back();
-
-        float fwd_pos = fwd_front.position;           // in edge frame
-        float bwd_pos = 1.0f - bwd_front.position;    // in edge frame
-
-        // They've met or crossed if fwd_pos >= bwd_pos
-        if (fwd_pos >= bwd_pos) {
-            // Skip if both already forced
-            if (fwd_front.forced_retreat && bwd_front.forced_retreat) break;
-
-            if (fwd_front.forced_retreat) {
-                // fwd already forced, bwd wins by default
-                break;
-            }
-            if (bwd_front.forced_retreat) {
-                // bwd already forced, fwd wins by default
-                break;
+    // Check all pairs of (fwd, bwd) groups for collisions.
+    // A collision is detected if they've crossed: fwd_pos > bwd_pos in edge frame.
+    // fwd groups: position in [0, 1], moving forward
+    // bwd groups: position in [0, 1] in lane frame, which is (1 - position) in edge frame
+    for (auto& fwd_group : fwd.groups) {
+        for (auto& bwd_group : bwd.groups) {
+            if (fwd_group.forced_retreat || bwd_group.forced_retreat) {
+                // One side already forced, skip pair
+                continue;
             }
 
-            // Larger group wins; on tie, neither retreats (stalemate)
-            if (fwd_front.count > bwd_front.count) {
-                bwd_front.forced_retreat = true;
-                bwd_front.retreating = true;
-                changed = true;
-            } else if (bwd_front.count > fwd_front.count) {
-                fwd_front.forced_retreat = true;
-                fwd_front.retreating = true;
-                changed = true;
+            float fwd_pos = fwd_group.position;        // in edge frame [0, 1]
+            float bwd_pos = 1.0f - bwd_group.position; // in edge frame [0, 1]
+
+            // They've crossed if fwd_pos > bwd_pos (fwd started at 0, bwd at 1)
+            if (fwd_pos > bwd_pos) {
+                // Determine winner by count
+                if (fwd_group.count > bwd_group.count) {
+                    bwd_group.forced_retreat = true;
+                    bwd_group.retreating = true;
+                } else if (bwd_group.count > fwd_group.count) {
+                    fwd_group.forced_retreat = true;
+                    fwd_group.retreating = true;
+                } else {
+                    // Equal counts: deterministic tie-breaker using edge node IDs
+                    bool fwd_retreats = (el.node_a + el.node_b) % 2 == 0;
+                    if (fwd_retreats) {
+                        fwd_group.forced_retreat = true;
+                        fwd_group.retreating = true;
+                    } else {
+                        bwd_group.forced_retreat = true;
+                        bwd_group.retreating = true;
+                    }
+                }
             }
-            // Equal counts: stalemate, neither retreats
         }
-
-        // After forcing a retreat, the retreating group will move backward.
-        // The next frontmost group might now collide. But we only cascade
-        // if the newly exposed leader hasn't been forced yet.
-        // Since we only flip one group per iteration and check `changed`,
-        // this naturally cascades.
-
-        // However, the retreating group is still in the same lane at the same
-        // position — it'll move away next tick. For this tick, no further
-        // collision with the same opponent. Break to avoid infinite loop.
-        break;
     }
 }
 
@@ -206,7 +190,7 @@ void update_edge(EdgeLanes& el, float dt, const GameConfig& config,
     aggregate_lane(el.lanes[1], config, el.edge_length);
 
     // 3. Resolve opposite-direction collisions
-    resolve_collisions(el.lanes[0], el.lanes[1], config, el.edge_length);
+    resolve_collisions(el, config);
 
     // 4. Extract arrivals
     // lane[0] = a->b: dest is node_b, origin is node_a

@@ -37,6 +37,7 @@ private:
     std::vector<EdgeLanes> edge_lanes_;
     std::vector<bool> alive_;
     float time_ = 0.0f;
+    float accumulated_production_time_ = 0.0f;  // for tick-based production (invariant across speeds)
     int n_players_;
     int n_real_players_;  // excludes neutral player
 
@@ -47,7 +48,7 @@ private:
     void process_arrivals(std::vector<Arrival>& arrivals);
     void resolve_all_combat();
     void update_ownership();
-    void produce_all_troops();
+    void produce_all_troops(float dt);  // accumulates dt; produces when >= 1.0 tick
     void update_alive();
 
     // Validate that player owns the node and has enough troops

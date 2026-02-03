@@ -65,8 +65,8 @@ void Game::tick(float dt, const std::vector<PlayerCommands>& commands) {
     resolve_all_combat();
     // 6b. Update ownership based on troop presence
     update_ownership();
-    // 7. Production
-    produce_all_troops();
+    // 7. Production (scaled by dt for game speed)
+    produce_all_troops(dt);
     // 8. Update alive
     update_alive();
 
@@ -198,8 +198,18 @@ void Game::resolve_all_combat() {
     }
 }
 
-void Game::produce_all_troops() {
-    produce_troops(node_data_, graph_, config_);
+void Game::produce_all_troops(float dt) {
+    // Accumulate dt and only produce when a full tick has elapsed.
+    // This maintains production rate regardless of game speed:
+    // - At 1x speed (dt=1.0): produce every frame
+    // - At 2x speed (dt=2.0): produce once per frame (2 ticks worth)
+    // - At 0.5x speed (dt=0.5): produce every 2 frames (1 tick worth)
+    accumulated_production_time_ += dt;
+
+    while (accumulated_production_time_ >= 1.0f) {
+        produce_troops(node_data_, graph_, config_);
+        accumulated_production_time_ -= 1.0f;
+    }
 }
 
 void Game::update_ownership() {

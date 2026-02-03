@@ -16,7 +16,7 @@ add_library(crisky_engine STATIC
 target_include_directories(crisky_engine PUBLIC src/)
 
 # --- Headless binary ---
-add_executable(crisky_headless src/main_headless.cpp)
+add_executable(crisky_headless src/main_headless.cpp src/player/attention_ai.cpp)
 target_link_libraries(crisky_headless PRIVATE crisky_engine)
 
 # --- RayLib (FetchContent) ---
@@ -31,6 +31,7 @@ FetchContent_MakeAvailable(raylib)
 add_executable(crisky_game
     src/main_game.cpp
     src/player/attention_ai.cpp
+    src/player/human_player.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )
@@ -51,3 +52,6 @@ target_link_libraries(test_game PRIVATE crisky_engine)
 
 add_executable(test_gameplay tests/test_gameplay.cpp)
 target_link_libraries(test_gameplay PRIVATE crisky_engine)
+
+add_executable(test_collision_invariant tests/test_collision_invariant.cpp)
+target_link_libraries(test_collision_invariant PRIVATE crisky_engine)

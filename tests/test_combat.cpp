@@ -128,7 +128,7 @@ void test_production_basic() {
     nodes[1].state = NodeState::FACTORY;   nodes[1].owner = 0; nodes[1].troops = {100};
     nodes[2].state = NodeState::POWERPLANT; nodes[2].owner = 0; nodes[2].troops = {100};
 
-    produce_troops(nodes, g, config);
+    produce_troops(nodes, g, config);  // always produces 1 tick regardless of game speed
 
     assert(nodes[0].troops[0] == 104);
     assert(nodes[1].troops[0] == 103);
