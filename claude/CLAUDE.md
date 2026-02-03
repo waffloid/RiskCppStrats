@@ -99,10 +99,10 @@ When a node's troop vector has multiple nonzero components:
 
 ## Troop Movement
 
-**Displacement formula**: `displacement = min(dt, (0.1 + 1/count) * dt / 0.2)` which simplifies to `min(dt, (0.5 + 5/count) * dt)`. Constants parameterized.
-- count < 10: clamped to `dt` (max speed)
-- count >= 10: displacement decreases with count, approaching `0.5 * dt`
-- Bigger armies are slower
+**Displacement formula**: `displacement = min(dt, c2 / cbrt(count) * dt)`. Constants parameterized (`c2 = 5.0`).
+- Small groups move fast (1 troop → speed 5.0)
+- Speed decreases as cube root of count, approaching 0 for very large groups
+- Bigger armies are slower; cube root gives gentler falloff than 1/count
 
 **Aggregation**: troops travelling in the same direction on the same edge within `radius(count) = RADIUS_FACTOR * count + buffer` of each other are merged. Only same-direction groups aggregate; opposing groups do not.
 
@@ -156,11 +156,18 @@ Attention-mechanism based:
 
 - Graph visualization with node colors per owner, troop counts displayed
 - Fog of war when playing (see own nodes + neighbors only), full vision when spectating
-- Click-drag circle selection for multi-node commands
-- Hotkeys (qwer) for sending troops (fixed count or percentage)
-- Hover highlighting for target node
-- Alt+drag for retreat operations within radius
-- Single-click node selection also supported
+- Click selects single node (clears previous), shift+click toggles, alt+click removes
+- Drag circle selection replaces selection; shift+drag unions, alt+drag removes
+- Dashed drag circle in player color (alt-drag uses scheme node_outline color)
+- Hotkeys: Q (501 troops), E (2501 troops), R (50% garrison), F (100% garrison minus 1)
+- Always leaves 1 troop at source to keep ownership
+- Unowned source nodes can only send to owned targets (no zipping through no-man's land)
+- Building on hover (not selection): 1=Factory, 2=Fort, 3=Powerplant, 4=Artillery
+- Can rebuild over existing buildings (except capitals)
+- Camera: WASD pan, I/O zoom, K/L rotate, scroll zoom
+- Rendering layers: edges → troop groups → node circles → selection halos → labels
+- SYS color (auto white/black based on background luminance) for selection halos and state icons
+- Text outlined with contrast color derived from foreground luminance
 
 ## RL / Heuristics (planned)
 
