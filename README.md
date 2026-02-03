@@ -2,7 +2,9 @@
 
 A C++ remake of [Risky Strats](https://www.roblox.com/games/4278596942/Risky-Strats) (Roblox) — a real-time strategy game played on geometric graphs. Built as both a playable game and a headless environment for reinforcement learning.
 
-![Screenshot](Screenshot%202026-02-02%20at%2023.58.45.png)
+![Screenshot](screenshots/theme_00_Default.png)
+
+![All 17 themes](screenshots/collage.png)
 
 ## The Game
 
