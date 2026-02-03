@@ -385,30 +385,43 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
     const auto& nodes_data = game.node_data();
     float r = rc_.node_radius * scale;
 
+    // Initialize per-node smoothed troops for zen mode (must be before glow pass)
+    if (zen_mode_ && static_cast<int>(zen_node_troops_.size()) != graph.num_nodes())
+        zen_node_troops_.resize(graph.num_nodes());
+
+    constexpr float troop_ema_alpha = 0.08f;
+
+    // In zen mode, update all smoothed troops before any drawing
+    if (zen_mode_) {
+        int n_real = game.n_real_players();
+        int np = std::min(n_real, MAX_PLAYERS);
+        for (int i = 0; i < graph.num_nodes(); i++) {
+            const auto& nd = nodes_data[i];
+            int raw[MAX_PLAYERS] = {};
+            for (int p = 0; p < np && p < static_cast<int>(nd.troops.size()); p++)
+                raw[p] = nd.troops[p];
+            zen_node_troops_[i].update(raw, np, troop_ema_alpha);
+        }
+    }
+
     // Glow pass (Cyberpunk / Retrowave)
     if (scheme_->effect & EFFECT_GLOW) {
         BeginBlendMode(BLEND_ADDITIVE);
         for (int i = 0; i < graph.num_nodes(); i++) {
             const auto& node = graph.nodes[i];
             const auto& nd = nodes_data[i];
-            if (nd.owner < 0) continue;
 
-            Vector2 sp = camera.world_to_screen({node.x, node.y});
+            if (nd.owner < 0) continue;
             Color glow = color_for_player(nd.owner);
             glow.a = static_cast<unsigned char>(scheme_->glow_intensity * 255);
 
+            Vector2 sp = camera.world_to_screen({node.x, node.y});
             DrawCircleGradient(static_cast<int>(sp.x), static_cast<int>(sp.y),
                                r * scheme_->glow_radius_mult,
                                glow, BLANK);
         }
         EndBlendMode();
     }
-
-    // Initialize per-node smoothed troops for zen mode
-    if (zen_mode_ && static_cast<int>(zen_node_troops_.size()) != graph.num_nodes())
-        zen_node_troops_.resize(graph.num_nodes());
-
-    constexpr float troop_ema_alpha = 0.08f;
 
     // Node circles, outlines, and state icons
     for (int i = 0; i < graph.num_nodes(); i++) {
@@ -422,12 +435,7 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
 
         Color fill;
         if (zen_mode_) {
-            int raw[MAX_PLAYERS] = {};
-            int n_real = game.n_real_players();
-            int np = std::min(n_real, MAX_PLAYERS);
-            for (int p = 0; p < np && p < static_cast<int>(nd.troops.size()); p++)
-                raw[p] = nd.troops[p];
-            zen_node_troops_[i].update(raw, np, troop_ema_alpha);
+            int np = std::min(game.n_real_players(), MAX_PLAYERS);
             int smoothed[MAX_PLAYERS] = {};
             zen_node_troops_[i].get(smoothed, np);
             fill = zen_node_color(smoothed, np, graph.num_nodes());
