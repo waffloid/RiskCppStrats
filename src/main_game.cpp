@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <cstring>
 #include <vector>
 #include <memory>
 
@@ -8,6 +9,7 @@
 #include "engine/game.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
+#include "renderer/color_scheme.hpp"
 #include "player/attention_ai.hpp"
 
 // Simple AI: sends troops to neighboring nodes, builds factories when affordable
@@ -66,12 +68,61 @@ public:
     void decide(const Game& /*game*/, int /*player_id*/, PlayerCommands& /*out*/) override {}
 };
 
+static int parse_scheme_arg(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--scheme=", 9) == 0) {
+            const char* name = argv[i] + 9;
+            for (int s = 0; s < NUM_COLOR_SCHEMES; s++) {
+                // Case-insensitive comparison
+                const char* a = name;
+                const char* b = COLOR_SCHEMES[s].name;
+                bool match = true;
+                while (*a && *b) {
+                    if (tolower(*a) != tolower(*b)) { match = false; break; }
+                    a++; b++;
+                }
+                if (match && *a == '\0' && *b == '\0') return s;
+            }
+            // Try numeric
+            int val = atoi(name);
+            if (val >= 0 && val < NUM_COLOR_SCHEMES) return val;
+            printf("Unknown scheme '%s'. Available:", name);
+            for (int s = 0; s < NUM_COLOR_SCHEMES; s++) {
+                printf(" %s", COLOR_SCHEMES[s].name);
+            }
+            printf("\n");
+        }
+    }
+    return SCHEME_DEFAULT;
+}
+
+static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int bg_tile) {
+    Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
+    Color* pixels = LoadImageColors(bg_img);
+    for (int i = 0; i < bg_tile * bg_tile; i++) {
+        int noise = static_cast<int>(pixels[i].r) - 128;
+        int offset = noise / 40;
+        pixels[i].r = static_cast<unsigned char>(std::clamp(static_cast<int>(bg_color.r) + offset, 0, 255));
+        pixels[i].g = static_cast<unsigned char>(std::clamp(static_cast<int>(bg_color.g) + offset, 0, 255));
+        pixels[i].b = static_cast<unsigned char>(std::clamp(static_cast<int>(bg_color.b) + offset, 0, 255));
+        pixels[i].a = 255;
+    }
+    UnloadImage(bg_img);
+    bg_img = {pixels, bg_tile, bg_tile, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    if (bg_tex.id > 0) UnloadTexture(bg_tex);
+    bg_tex = LoadTextureFromImage(bg_img);
+    SetTextureWrap(bg_tex, TEXTURE_WRAP_REPEAT);
+    UnloadImageColors(pixels);
+}
+
 int main(int argc, char* argv[]) {
     uint64_t seed = 42;
-    if (argc > 1) seed = static_cast<uint64_t>(std::atoll(argv[1]));
+    if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));
 
-    const int screen_w = 1280;
-    const int screen_h = 800;
+    int scheme_idx = parse_scheme_arg(argc, argv);
+
+    int screen_w = 1280;
+    int screen_h = 800;
 
     // Game setup
     GameConfig config;
@@ -106,32 +157,19 @@ int main(int argc, char* argv[]) {
     }
 
     // RayLib init
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(screen_w, screen_h, "CRisky — Spectator");
     SetTargetFPS(60);
 
-    // Generate tileable noise background: base green + very subtle random offset
+    // Generate tileable noise background
     const int bg_tile = 256;
-    Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
-    Color* pixels = LoadImageColors(bg_img);
-    for (int i = 0; i < bg_tile * bg_tile; i++) {
-        int noise = static_cast<int>(pixels[i].r) - 128; // -128..+127
-        int offset = noise / 40;                          // -3..+3 very subtle
-        pixels[i].r = static_cast<unsigned char>(std::clamp(50 + offset, 0, 255));
-        pixels[i].g = static_cast<unsigned char>(std::clamp(80 + offset, 0, 255));
-        pixels[i].b = static_cast<unsigned char>(std::clamp(40 + offset, 0, 255));
-        pixels[i].a = 255;
-    }
-    UnloadImage(bg_img);
-    bg_img = {pixels, bg_tile, bg_tile, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
-    Texture2D bg_tex = LoadTextureFromImage(bg_img);
-    SetTextureWrap(bg_tex, TEXTURE_WRAP_REPEAT);
-    UnloadImageColors(pixels);
+    Texture2D bg_tex = {0};
+    regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
 
     Camera2D_Custom camera;
     camera.fit_to_graph(game.graph(), screen_w, screen_h);
 
-    Renderer renderer(screen_w, screen_h);
+    Renderer renderer(screen_w, screen_h, &COLOR_SCHEMES[scheme_idx]);
 
     // Tick timing
     float game_speed = 1.0f;  // ticks per frame at 60 FPS
@@ -139,9 +177,14 @@ int main(int argc, char* argv[]) {
     bool paused = false;
     int tick_count = 0;
 
+    // Scheme switch notification
+    float scheme_notify_timer = 0.0f;
+
     std::vector<PlayerCommands> commands(n_total);
 
     while (!WindowShouldClose()) {
+        screen_w = GetScreenWidth();
+        screen_h = GetScreenHeight();
         camera.update();
 
         // Speed adjustment: +/- keys
@@ -153,6 +196,38 @@ int main(int argc, char* argv[]) {
         }
         if (IsKeyPressed(KEY_SPACE)) {
             paused = !paused;
+        }
+
+        // Color scheme switching: 1-9 for first 9, [ and ] to cycle all
+        for (int k = 0; k < NUM_COLOR_SCHEMES && k < 9; k++) {
+            if (IsKeyPressed(KEY_ONE + k)) {
+                scheme_idx = k;
+                renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
+                regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
+                scheme_notify_timer = 2.0f;
+            }
+        }
+        if (IsKeyPressed(KEY_RIGHT_BRACKET)) {
+            scheme_idx = (scheme_idx + 1) % NUM_COLOR_SCHEMES;
+            renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
+            regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
+            scheme_notify_timer = 2.0f;
+        }
+        if (IsKeyPressed(KEY_LEFT_BRACKET)) {
+            scheme_idx = (scheme_idx - 1 + NUM_COLOR_SCHEMES) % NUM_COLOR_SCHEMES;
+            renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
+            regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
+            scheme_notify_timer = 2.0f;
+        }
+        if (IsKeyPressed(KEY_ZERO)) {
+            scheme_idx = 0;
+            renderer.set_scheme(&COLOR_SCHEMES[scheme_idx]);
+            regenerate_bg_texture(bg_tex, COLOR_SCHEMES[scheme_idx].background, bg_tile);
+            scheme_notify_timer = 2.0f;
+        }
+
+        if (scheme_notify_timer > 0.0f) {
+            scheme_notify_timer -= GetFrameTime();
         }
 
         // One tick per frame
@@ -170,36 +245,39 @@ int main(int argc, char* argv[]) {
 
         // Draw
         BeginDrawing();
-        ClearBackground(Color{50, 80, 40, 255});
+        ClearBackground(COLOR_SCHEMES[scheme_idx].background);
 
-        // Tile noise background, scrolling with camera
-        {
-            Vector2 cam_off = camera.offset();
-            float ox = std::fmod(cam_off.x * camera.zoom(), static_cast<float>(bg_tile));
-            float oy = std::fmod(cam_off.y * camera.zoom(), static_cast<float>(bg_tile));
-            if (ox > 0) ox -= bg_tile;
-            if (oy > 0) oy -= bg_tile;
-            for (float y = oy; y < screen_h; y += bg_tile) {
-                for (float x = ox; x < screen_w; x += bg_tile) {
-                    DrawTexture(bg_tex, static_cast<int>(x), static_cast<int>(y), WHITE);
-                }
-            }
-        }
+        // Draw background (gradient for Retrowave, tiled noise for others)
+        renderer.draw_background(screen_w, screen_h, camera, bg_tex);
 
         renderer.draw(game, camera);
 
+        // Scanline overlay (Terminal theme)
+        renderer.draw_scanlines(screen_w, screen_h);
+
         // HUD
         char hud[128];
-        snprintf(hud, sizeof(hud), "Tick: %d  Speed: %.2fx  FPS: %d%s",
-                 tick_count, game_speed, GetFPS(), paused ? "  [PAUSED]" : "");
+        snprintf(hud, sizeof(hud), "Tick: %d  Speed: %.2fx  FPS: %d%s  [%s]",
+                 tick_count, game_speed, GetFPS(), paused ? "  [PAUSED]" : "",
+                 COLOR_SCHEMES[scheme_idx].name);
         DrawText(hud, 10, 10, 16, WHITE);
 
         if (game.is_game_over()) {
             DrawText("GAME OVER", screen_w / 2 - 60, screen_h / 2, 24, WHITE);
         }
 
+        // Scheme switch notification
+        if (scheme_notify_timer > 0.0f) {
+            char notify[64];
+            snprintf(notify, sizeof(notify), "Theme: %s", COLOR_SCHEMES[scheme_idx].name);
+            int tw = MeasureText(notify, 24);
+            unsigned char alpha = static_cast<unsigned char>(
+                std::min(1.0f, scheme_notify_timer) * 255);
+            DrawText(notify, screen_w / 2 - tw / 2, 50, 24, Color{255, 255, 255, alpha});
+        }
+
         // Controls help
-        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  MMB: drag",
+        DrawText("+/-: speed  Space: pause  WASD: pan  Q/E: rotate  Scroll: zoom  [/]: cycle themes  0-9: select theme",
                  10, screen_h - 20, 10, DARKGRAY);
 
         EndDrawing();

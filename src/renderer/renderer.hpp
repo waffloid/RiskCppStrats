@@ -4,6 +4,7 @@
 #include "raylib.h"
 #include "engine/game.hpp"
 #include "renderer/camera.hpp"
+#include "renderer/color_scheme.hpp"
 
 struct RenderConstants {
     float node_radius = 1.05f;
@@ -14,24 +15,27 @@ struct RenderConstants {
     float font_size_troop = 4.8f;
     float font_size_node_label = 5.6f;
     float troop_lane_offset_px = 0.45f;
-    Color edge_outer_color = Color{60, 55, 50, 140};    // dark grey-brown, transparent
-    Color edge_inner_color = Color{150, 140, 130, 255};  // lighter grey, opaque
-    Color unowned_color = Color{210, 210, 200, 255};     // bright warm white-grey
+    float shadow_offset_x = 1.0f;
+    float shadow_offset_y = 2.5f;
 };
 
 class Renderer {
 public:
-    Renderer(int screen_w, int screen_h);
+    Renderer(int screen_w, int screen_h, const ColorScheme* scheme = &COLOR_SCHEMES[SCHEME_DEFAULT]);
 
     void draw(const Game& game, const Camera2D_Custom& camera);
+    void draw_background(int screen_w, int screen_h, const Camera2D_Custom& camera, Texture2D noise_tex);
+    void draw_scanlines(int screen_w, int screen_h);
+    void set_scheme(const ColorScheme* scheme) { scheme_ = scheme; }
+    const ColorScheme* scheme() const { return scheme_; }
 
 private:
     int screen_w_;
     int screen_h_;
     RenderConstants rc_;
+    const ColorScheme* scheme_;
 
     static constexpr int MAX_PLAYERS = 8;
-    Color player_colors_[MAX_PLAYERS];
 
     void draw_edges(const Game& game, const Camera2D_Custom& camera, float scale);
     void draw_nodes(const Game& game, const Camera2D_Custom& camera, float scale);
@@ -40,7 +44,7 @@ private:
     Color color_for_player(int owner) const;
     void draw_state_icon(NodeState state, Vector2 center, float radius) const;
 
-    float base_zoom_ = 1.0f;  // set on first draw to make sizes relative
+    float base_zoom_ = 1.0f;
 };
 
 #endif
