@@ -8,18 +8,29 @@
 Game::Game(const GameConfig& config, const std::vector<int>& capitals, uint64_t seed)
     : config_(config), n_real_players_(static_cast<int>(capitals.size())) {
 
+    graph_ = Graph::generate_poisson(config_, seed);
+    init_state(capitals);
+}
+
+Game::Game(const GameConfig& config, Graph graph, const std::vector<int>& capitals)
+    : config_(config), n_real_players_(static_cast<int>(capitals.size())),
+      graph_(std::move(graph)) {
+
+    init_state(capitals);
+}
+
+void Game::init_state(const std::vector<int>& capitals) {
     n_players_ = n_real_players_;
     // Add a neutral player if default troops are configured
     bool has_neutral = config_.init_default_troops > 0;
     if (has_neutral) n_players_ = n_real_players_ + 1;
     int neutral_id = n_real_players_; // last player slot
 
-    graph_ = Graph::generate_poisson(config_, seed);
-
     // Initialize node data
     node_data_.resize(graph_.num_nodes());
-    for (auto& nd : node_data_) {
+    for (NodeData& nd : node_data_) {
         nd.troops.assign(n_players_, 0);
+        nd.accumulated_damage.assign(n_players_, 0.0f);
     }
 
     // Place capitals
@@ -42,12 +53,28 @@ Game::Game(const GameConfig& config, const std::vector<int>& capitals, uint64_t 
 
     // Initialize edge lanes
     edge_lanes_.resize(graph_.num_edges());
-    for (const auto& e : graph_.edges) {
-        auto& el = edge_lanes_[e.idx];
+    for (const Edge& e : graph_.edges) {
+        EdgeLanes& el = edge_lanes_[e.idx];
         el.edge_idx = e.idx;
         el.node_a = e.a_idx;
         el.node_b = e.b_idx;
         el.edge_length = e.length;
+    }
+}
+
+void Game::set_node_state(int node, NodeState state, int owner, int troops) {
+    NodeData& nd = node_data_[node];
+    nd.state = state;
+    // Clear existing troops and accumulated damage
+    for (int p = 0; p < n_players_; p++) {
+        nd.troops[p] = 0;
+        nd.accumulated_damage[p] = 0.0f;
+    }
+    if (owner >= 0 && owner < n_players_) {
+        nd.owner = owner;
+        nd.troops[owner] = troops;
+    } else {
+        nd.owner = -1;
     }
 }
 
@@ -62,7 +89,7 @@ void Game::tick(float dt, const std::vector<PlayerCommands>& commands) {
     // 5. Process arrivals
     update_all_edge_lanes(dt);
     // 6. Combat
-    resolve_all_combat();
+    resolve_all_combat(dt);
     // 6b. Update ownership based on troop presence
     update_ownership();
     // 7. Production (scaled by dt for game speed)
@@ -85,7 +112,7 @@ int Game::building_cost(NodeState state) const {
 
 bool Game::validate_build(int player_id, const BuildCommand& cmd) const {
     if (cmd.node_idx < 0 || cmd.node_idx >= graph_.num_nodes()) return false;
-    const auto& nd = node_data_[cmd.node_idx];
+    const NodeData& nd = node_data_[cmd.node_idx];
     if (nd.owner != player_id) return false;
     if (nd.state == cmd.structure) return false; // already this type
     if (nd.state == NodeState::CAPITAL) return false; // can't build over capital
@@ -99,7 +126,7 @@ bool Game::validate_troop_send(int player_id, const TroopCommand& cmd) const {
     if (cmd.from_node < 0 || cmd.from_node >= graph_.num_nodes()) return false;
     if (cmd.to_node < 0 || cmd.to_node >= graph_.num_nodes()) return false;
     if (cmd.count <= 0) return false;
-    const auto& nd = node_data_[cmd.from_node];
+    const NodeData& nd = node_data_[cmd.from_node];
     if (nd.troops[player_id] < cmd.count) return false;
     return true;
 }
@@ -107,7 +134,7 @@ bool Game::validate_troop_send(int player_id, const TroopCommand& cmd) const {
 void Game::process_build_commands(const std::vector<PlayerCommands>& commands) {
     for (int p = 0; p < n_players_; p++) {
         if (!alive_[p]) continue;
-        for (const auto& cmd : commands[p].builds) {
+        for (const BuildCommand& cmd : commands[p].builds) {
             if (!validate_build(p, cmd)) continue;
             int cost = building_cost(cmd.structure);
             node_data_[cmd.node_idx].troops[p] -= cost;
@@ -119,7 +146,7 @@ void Game::process_build_commands(const std::vector<PlayerCommands>& commands) {
 void Game::process_troop_sends(const std::vector<PlayerCommands>& commands) {
     for (int p = 0; p < n_players_; p++) {
         if (!alive_[p]) continue;
-        for (const auto& cmd : commands[p].troops) {
+        for (const TroopCommand& cmd : commands[p].troops) {
             if (!validate_troop_send(p, cmd)) continue;
 
             // Find the first hop via routing
@@ -143,15 +170,15 @@ void Game::process_troop_sends(const std::vector<PlayerCommands>& commands) {
 void Game::process_retreats(const std::vector<PlayerCommands>& commands) {
     for (int p = 0; p < n_players_; p++) {
         if (!alive_[p]) continue;
-        for (const auto& cmd : commands[p].retreats) {
+        for (const RetreatCommand& cmd : commands[p].retreats) {
             // Retreat all groups owned by this player that originated from this node
             // across all edges adjacent to this node
             if (cmd.node_idx < 0 || cmd.node_idx >= graph_.num_nodes()) continue;
-            const auto& node = graph_.nodes[cmd.node_idx];
+            const Node& node = graph_.nodes[cmd.node_idx];
             for (int nbr : node.neighbor_indices) {
                 int eidx = graph_.edge_between(cmd.node_idx, nbr);
                 if (eidx < 0) continue;
-                auto& el = edge_lanes_[eidx];
+                EdgeLanes& el = edge_lanes_[eidx];
                 // Determine which lane this node is the origin of
                 int lane_idx = (cmd.node_idx == el.node_a) ? 0 : 1;
                 for (auto& g : el.lanes[lane_idx].groups) {
@@ -166,14 +193,14 @@ void Game::process_retreats(const std::vector<PlayerCommands>& commands) {
 
 void Game::update_all_edge_lanes(float dt) {
     std::vector<Arrival> arrivals;
-    for (auto& el : edge_lanes_) {
+    for (EdgeLanes& el : edge_lanes_) {
         update_edge(el, dt, config_, arrivals);
     }
     process_arrivals(arrivals);
 }
 
 void Game::process_arrivals(std::vector<Arrival>& arrivals) {
-    for (const auto& a : arrivals) {
+    for (const Arrival& a : arrivals) {
         // Deposit troops at the arrival node
         node_data_[a.arrived_at_node].troops[a.owner] += a.count;
 
@@ -193,9 +220,9 @@ void Game::process_arrivals(std::vector<Arrival>& arrivals) {
     }
 }
 
-void Game::resolve_all_combat() {
+void Game::resolve_all_combat(float dt) {
     for (int i = 0; i < graph_.num_nodes(); i++) {
-        resolve_combat(node_data_[i], i, graph_, node_data_, n_players_, config_);
+        resolve_combat(node_data_[i], i, graph_, node_data_, n_players_, config_, dt);
     }
 }
 
@@ -214,7 +241,7 @@ void Game::produce_all_troops(float dt) {
 }
 
 void Game::update_ownership() {
-    for (auto& nd : node_data_) {
+    for (NodeData& nd : node_data_) {
         int sole_owner = -1;
         int n_present = 0;
         for (int p = 0; p < n_players_; p++) {
@@ -236,15 +263,15 @@ void Game::update_alive() {
         bool has_troops = false;
 
         // Check nodes
-        for (const auto& nd : node_data_) {
+        for (const NodeData& nd : node_data_) {
             if (nd.troops[p] > 0) { has_troops = true; break; }
         }
 
         // Check edge lanes
         if (!has_troops) {
-            for (const auto& el : edge_lanes_) {
+            for (const EdgeLanes& el : edge_lanes_) {
                 for (int lane = 0; lane < 2; lane++) {
-                    for (const auto& g : el.lanes[lane].groups) {
+                    for (const TroopGroup& g : el.lanes[lane].groups) {
                         if (g.owner == p && g.count > 0) {
                             has_troops = true;
                             break;

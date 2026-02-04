@@ -17,6 +17,7 @@ struct NodeData {
     NodeState state = NodeState::DEFAULT;
     int owner = -1;              // -1 = unowned
     std::vector<int> troops;     // troops[player_id] = count at this node
+    std::vector<float> accumulated_damage;  // fractional combat damage carried between ticks
 };
 
 #endif

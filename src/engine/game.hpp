@@ -1,8 +1,8 @@
 #ifndef CRISKY_GAME_HPP
 #define CRISKY_GAME_HPP
 
-#include <vector>
 #include <cstdint>
+#include <vector>
 
 #include "game_config.hpp"
 #include "game_state.hpp"
@@ -15,6 +15,13 @@ public:
     // Construct a game: generate graph, place capitals at specified nodes.
     // capitals[i] is the node index for player i's capital.
     Game(const GameConfig& config, const std::vector<int>& capitals, uint64_t seed);
+
+    // Construct a game with a pre-built graph (no Poisson generation).
+    // capitals[i] is the node index for player i's capital.
+    Game(const GameConfig& config, Graph graph, const std::vector<int>& capitals);
+
+    // Override a node's state after construction (for benchmark scenarios).
+    void set_node_state(int node, NodeState state, int owner, int troops);
 
     // Main tick. Deterministic given same commands.
     void tick(float dt, const std::vector<PlayerCommands>& commands);
@@ -47,10 +54,13 @@ private:
     void process_retreats(const std::vector<PlayerCommands>& commands);
     void update_all_edge_lanes(float dt);
     void process_arrivals(std::vector<Arrival>& arrivals);
-    void resolve_all_combat();
+    void resolve_all_combat(float dt);
     void update_ownership();
     void produce_all_troops(float dt);  // accumulates dt; produces when >= 1.0 tick
     void update_alive();
+
+    // Shared initialization (called by both constructors)
+    void init_state(const std::vector<int>& capitals);
 
     // Validate that player owns the node and has enough troops
     bool validate_build(int player_id, const BuildCommand& cmd) const;
