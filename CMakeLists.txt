@@ -20,6 +20,7 @@ add_library(crisky_engine STATIC
     src/player/war_utilities.cpp
     src/player/knapsack_war_agent.cpp
     src/player/direct_war_agent.cpp
+    src/player/bootstrap_economy_agent.cpp
     src/player/models.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)

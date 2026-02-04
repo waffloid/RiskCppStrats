@@ -1,0 +1,99 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2759
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww21760\viewh21380\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \ul \ulc0 Risky strats\
+\
+\ulnone Risky strats is a discrete-time game played on 
+\f1\b geometric graphs
+\f0\b0 . We define a geometric graph as follows: \
+\
+* Consider a sequence \{a_i\}_\{i=1\}^n in R^2. Let G be a graph on the vertices \{a_i : 1 <= i <= n\} with edges \{(a_i, a_j) : 1 <= i < i <= n   ||a_i - a_j|| <= 1\}. Then, a graph H on \{a_i\}_\{i=1\}^n is a 
+\f1\b geometric graph 
+\f0\b0 if it is a subgraph of G.\
+\
+Remark: The data of a geometric graph is the graph structure alongside the sequence data. If it was just the graph structure, this definition would be trivial: let ||a_i|| < 0.5, then G \\isom K_n, so H is arbitrary.\
+\
+Remark: Given a sequence (a_i)_i=1^n in R^2, we call the geometric graph G as constructed above from the sequence to be the 
+\f1\b induced geometric graph
+\f0\b0  of (a_i), or the 
+\f1\b geometric graph
+\f0\b0  induced by (a_i).\
+\
+For the context of this game, we are primarily interested in two kinds of geometric graphs.\
+(1) Perturbed grids\
+(2) Poisson process graphs\
+\
+We can define a perturbed graph as follows. Let a_ij = k(i, j)  for 1 <= i <= n, 1 <= j <= m for some choice of n, m in N, k in R^+. Then, define b_ij = a_ij + delta_ij, where (delta_ij) is some sequence of IID random variables satisfying a constraint ||delta_ij|| <= r for some choice of r. In practice, we will use delta_ij ~ Unif([-r, r] x [-r, r]). The perturbed graph is the graph induced by (b_ij).\
+\
+A poisson process graph is constructed by generating a sequence (a_i) by sampling points from a region of R^2 using a Poisson process. A poisson process graph is a subgraph of the graph induced by (a_i).\
+\
+-\
+\
+The game risky strats works as follows. There are players P1, \'85 Pn. Each player is ascribed a node on the graph. Each node on the graph has two pieces of data: (1) its state (default/factory/powerplant/fort/artillery), and (2), a vector in (R^+)^n corresponding to the number of troops owned by each player Pi on that node. Call this the troop vector.\
+\
+A node is \'93owned\'94 by a player Pi if the troop vector is a scalar multiple of e_i. \
+\
+The rules of the games, in brief, are as follows:\
+* factories generate troops for the node-owner. They generate 1 troop per \'93tick\'94 (that is, the game is discretized)\
+* powerplants augment the troop-generating facilities of the factories it neighbors: each factory neighboring a powerplant generates +2 troops per tick.\
+* the node of origin is the \'93capital\'94, which generates 2 troops/tick by default. They are treated the same as factories by powerplants.\
+\
+If the troop-vector has multiple non-zero components, then their troops must \'93fight\'94. In order to compute this, we construct two vectors \'97 an attack vector and a defense vector, corresponding to these respective properties of each players troops. This gets augmented by forts and artilleries. The amount of troops lost by P_i is equal to of defense_i - sum_\{ j\\= i\}attack_j. We initialize the attack vector to be 1/100 the troop vector, and the defense vector to be 1/1000 the troop vector. This vector is augmented by forts by increasing the most recent owners defense vector component by x%, whereas an artillery increases the attack vector component of its owner by y% of each neighboring node.\
+\
+Troops can _move_. If a player has n troops at a node p, they can \'93send\'94 m <= n troops to any neighbor q of p. \'93Sending\'94 a troop corresponds to a process of moving them along the edge pq in R^2. That is, it takes ||p-q|| * sqrt(troops) * Q  for fixed constant Q, and lower-bounded by a constant value. If a player sends troops at time t_1 from p to q, and then sends troops at t_2, if the troops from t_1 are a distance epsilon (fixed epsilon) from t_2, then they are \'93aggregated\'94 \'97 that is, instead of a new travel signal being produced, the number of troops traveling from t_1 is incremented by the number of troops sent at t_2.\
+\
+Converting a node state costs troops. 500 for factory, 2500 for powerplant, 400 for fort, 4000 for artillery.\
+\
+Troops can be retreated. The amount of time taken to return is equal to the amount of time passed travelling. This should flatten the travel-data, e.g., they forget their global travelling info and just settle at the node they were locally sent from. \
+\
+-\
+\
+Implementation.\
+\
+We should have a Graph class, which allows for the basic operations of a graph.\
+* Subgraph (given nodes, returns a graph object)\
+* Basic graph data: nodes, nodes.neighbors\
+\
+RiskyGraph\
+* Extends Graph class,\
+* Getters and setters for game-data associated with each node\
+* Sending troop method\
+* Update method to run a tick of the game state\
+     * Private sub-methods: update factories, update battle, update traveling troops\
+\
+	* travelling troops data: (from_node, local_to_node, global_to_node, t_sent, t_arrival no_troops, owner). Should be a struct. Nodes will travel via a heuristic, which for now will be to choose the local_node such that normalized local_node - from_node has closest dot product similarity with global_to_node - from_node. Global transport is thus the concatenation of many local transports. That is, once a destination is reached (i.e., the update traveling troops method is called and t_arrival has passed, the object is cleaned up, and :send troops is called again from the arrival node).\
+\
+* Player alive in game flags. Bool for each player.\
+* Initialized by passing a graph object and a vector of capitals (this is how the number of players etc is determined).\
+\
+* Range operations (to make efficient the UI operations which are described below) \'97 e.g. retreat in radius (point, radius, player), send all troops from radius (point, radius, player, target, percentage/number)\
+\
+RiskyPlayer\
+* state mangement for human players, keeps track of user input state as described below\
+\
+-\
+\
+User-input scaffolding: \
+* Graph is visualized, nodes are coloured according to player owner and display the number of troops there. Node colour corresponds to the player who owns it. If you are _playing_, there is fog of war. You can only see your nodes and the state of nodes nbring the ones you own. If you are spectating, you can see everything. \
+\
+* If taking user as a player, then playing works as follows: clicking and dragging constructs a circle (dotted line representing circumference) to select nodes within the radius. There are hotkeys qwer to thus command the troops. Each hotkey corresponds to either a fixed number of fixed percentage of troops, and sends them from each selected node to the node thats being hovered over. There should be highlighting to indicated what (if any) node is being hovered over. An individaul node can be selected by clicking, too, and allows troops to be commanded similarly (the set of commanding troops is simply a set, and this is UI to dictate it)\
+\
+Highlighting whilst holding down alt corresponds to a retreat operation. That is, a circle may be click and dragged, but whilst alt is being pressed this corresponds to a retreat operation for all of the troops within the radius. That is, if the click is let go whilst alt is down, it will retreat all of the owned troops in that radius.\
+\
+\
+-\
+\
+Further:\
+* \'93Attention-mechanism\'94 AI. \
+   * Each node has an attention variable. \
+        *Troops flow according to attention. If node B has 100 attention and its nbr, node A has 10 attention, then troops willl flow from A to B. If the attention flips, (i.e. 100, 10 -> 10, 100) then the troops travelling from A to B will retreat.\
+        * In particular, we want the amount of outflow of a node to be softmax( ||nbr_attention^+||) * nbr_attention^+_i / ||nbr_attention^+||, where nbr_attention is a vector where component i is equal to nbr[i].attention - self.attention, and x^+ = max(x, 0). That is, the total outflow is modulated by the magnitude of the attention, and is prorated according to the contribution of each node to this vector.\
+\
+   * Attention diffuses. We can consider our graph as a discretization of the diffusion equation on R^2 and thus induce a sparse linear numerical scheme to diffuse attention. We may also want to normalize the attention (by subtracting out the mean), as the behaviour is invariant with respect to the mean, but will drift which may cause numerical instability.\
+    * The AI operates by generating attention deltas for their nodes. Their input is the state of their neighbors (state, troops, attention). In a later iteration, we will want to introduce a message passing interface and allow for graph neural network behaviour (e.g., ascribing a vector of outputs from each ai node, and using a message passing interface to aggregate these vectors for communication.)\
+     * Instead for now, we can use basic heuristics. There are some independent attention-machines. Un-occupied nodes will generate +10 attention per tick, to swarm troops to the boundary. Nodes with \'93desired\'94 states will generate attention to draw troops towards them (depending on the desired state), and we can use heuristics to determine if a node wants to be a powerplant or a factory. Nodes will get +const attention for each factory/default neighbor, and -const attention for each powerplant neighbor. As a heuristic, this means that a node will be attended to if it would be greedy-good to introduce a powerplant there. It will also be attended to if its not anything yet, since default nodes get attended to. We could refine this heuristic by regularizing the +attention from defaults to be a function of _their_ attention, since we could price in expectations of the default becoming a factory or powerplant.\
+}

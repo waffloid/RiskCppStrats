@@ -1,5 +1,6 @@
 # Build
 build/
+build_debug/
 cmake-build-*/
 
 # IDE

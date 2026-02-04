@@ -4,6 +4,7 @@
 #include "player/expansion_agent.hpp"
 #include "player/knapsack_war_agent.hpp"
 #include "player/direct_war_agent.hpp"
+#include "player/bootstrap_economy_agent.hpp"
 
 #include <map>
 
@@ -43,6 +44,14 @@ static const std::map<std::string, ModelFactory>& registry() {
             // v2 direct war + expansion hybrid (identical to v2_knapsack)
             auto ai = std::make_unique<AttentionAI>(player_id, AttentionAI::NoDefaults{});
             ai->add_sub_agent(std::make_unique<EconomySubAgent>(), 1.0f);
+            ai->add_sub_agent(std::make_unique<ExpansionSubAgent>(), 1.0f);
+            ai->add_sub_agent(std::make_unique<DirectWarSubAgent>(), 1.0f);
+            return ai;
+        }},
+        {"v3_bootstrap", [](int player_id) {
+            // Bootstrap economy: planned factory+powerplant build order, then standard eco
+            auto ai = std::make_unique<AttentionAI>(player_id, AttentionAI::NoDefaults{});
+            ai->add_sub_agent(std::make_unique<BootstrapEconomySubAgent>(), 1.0f);
             ai->add_sub_agent(std::make_unique<ExpansionSubAgent>(), 1.0f);
             ai->add_sub_agent(std::make_unique<DirectWarSubAgent>(), 1.0f);
             return ai;
