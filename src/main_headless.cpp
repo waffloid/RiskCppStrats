@@ -1,16 +1,14 @@
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <chrono>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "engine/game.hpp"
 #include "player/attention_ai.hpp"
-
-// Passive AI for neutral player
-class PassiveAI : public PlayerInterface {
-public:
-    void decide(const Game& /*game*/, int /*player_id*/, PlayerCommands& /*out*/) override {}
-};
+#include "player/models.hpp"
+#include "player/passive_ai.hpp"
 
 int main(int argc, char* argv[]) {
     uint64_t seed = 42;
@@ -19,6 +17,24 @@ int main(int argc, char* argv[]) {
 
     if (argc > 1) seed = static_cast<uint64_t>(std::atoll(argv[1]));
     if (argc > 2) max_ticks = std::atoi(argv[2]);
+
+    std::string model_p0 = "v0_expansion";
+    std::string model_p1 = "v0_expansion";
+    if (argc > 3) model_p0 = argv[3];
+    if (argc > 4) model_p1 = argv[4];
+
+    // Validate model names
+    const ModelFactory* factory_p0 = get_model(model_p0);
+    const ModelFactory* factory_p1 = get_model(model_p1);
+    if (!factory_p0 || !factory_p1) {
+        if (!factory_p0) printf("Unknown model: %s\n", model_p0.c_str());
+        if (!factory_p1) printf("Unknown model: %s\n", model_p1.c_str());
+        printf("Available models:");
+        for (const auto& name : list_models()) printf(" %s", name.c_str());
+        printf("\n");
+        printf("Usage: %s [seed] [max_ticks] [model_p0] [model_p1]\n", argv[0]);
+        return 1;
+    }
 
     GameConfig config;
     config.poisson_intensity = 0.04f;
@@ -41,11 +57,11 @@ int main(int argc, char* argv[]) {
     int n_total = game.n_players();
     printf("Game: %d players (+%d neutral), %d nodes, %d edges\n",
            n_real, n_total - n_real, game.graph().num_nodes(), game.graph().num_edges());
+    printf("P0: %s  vs  P1: %s\n", model_p0.c_str(), model_p1.c_str());
 
     std::vector<std::unique_ptr<PlayerInterface>> ais;
-    for (int i = 0; i < n_real; i++) {
-        ais.push_back(std::make_unique<AttentionAI>(i));
-    }
+    ais.push_back((*factory_p0)(0));
+    ais.push_back((*factory_p1)(1));
     for (int i = n_real; i < n_total; i++) {
         ais.push_back(std::make_unique<PassiveAI>());
     }
@@ -86,7 +102,7 @@ int main(int argc, char* argv[]) {
             double elapsed = std::chrono::duration<double>(now - t0).count();
             printf("Game over at tick %d (%.3fs, %.0f ticks/sec)\n", tick, elapsed, tick / elapsed);
             for (int p = 0; p < n_real; p++) {
-                if (game.is_alive(p)) printf("Winner: P%d\n", p);
+                if (game.is_alive(p)) printf("Winner: P%d (%s)\n", p, (p == 0 ? model_p0 : model_p1).c_str());
             }
             return 0;
         }

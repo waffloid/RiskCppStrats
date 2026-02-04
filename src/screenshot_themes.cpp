@@ -1,8 +1,8 @@
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include "raylib.h"
 #include "engine/game.hpp"
@@ -10,6 +10,7 @@
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
 #include "player/attention_ai.hpp"
+#include "player/passive_ai.hpp"
 
 static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int bg_tile) {
     Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
@@ -57,11 +58,7 @@ int main() {
     ais.push_back(std::make_unique<AttentionAI>(0));
     ais.push_back(std::make_unique<AttentionAI>(1));
     for (int i = 2; i < n_total; i++) {
-        // Passive
-        struct Passive : PlayerInterface {
-            void decide(const Game&, int, PlayerCommands&) override {}
-        };
-        ais.push_back(std::make_unique<Passive>());
+        ais.push_back(std::make_unique<PassiveAI>());
     }
 
     // Simulate

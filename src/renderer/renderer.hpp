@@ -8,17 +8,19 @@
 #include <set>
 #include <vector>
 
+// Maximum number of players supported by the game engine.
+inline constexpr int MAX_PLAYERS = 8;
+
 struct SmoothedTroops {
-    static constexpr int MAX_P = 8;
-    float troops[MAX_P] = {};
+    float troops[MAX_PLAYERS] = {};
     bool initialized = false;
 
     void update(const int* raw, int n, float alpha) {
         if (!initialized) {
-            for (int i = 0; i < n && i < MAX_P; i++) troops[i] = static_cast<float>(raw[i]);
+            for (int i = 0; i < n && i < MAX_PLAYERS; i++) troops[i] = static_cast<float>(raw[i]);
             initialized = true;
         } else {
-            for (int i = 0; i < n && i < MAX_P; i++)
+            for (int i = 0; i < n && i < MAX_PLAYERS; i++)
                 troops[i] += alpha * (static_cast<float>(raw[i]) - troops[i]);
         }
     }
@@ -26,7 +28,7 @@ struct SmoothedTroops {
     // Write smoothed values as ints into out, return total
     int get(int* out, int n) const {
         int total = 0;
-        for (int i = 0; i < n && i < MAX_P; i++) {
+        for (int i = 0; i < n && i < MAX_PLAYERS; i++) {
             out[i] = static_cast<int>(troops[i]);
             total += out[i];
         }
@@ -66,8 +68,6 @@ private:
     RenderConstants rc_;
     const ColorScheme* scheme_;
 
-    static constexpr int MAX_PLAYERS = 8;
-
     void draw_selection_halos(const Game& game, const Camera2D_Custom& camera,
                               float scale, const std::set<int>& selected_nodes);
     void draw_edges(const Game& game, const Camera2D_Custom& camera, float scale);
@@ -80,8 +80,13 @@ private:
     Color zen_node_color(const int* troops, int n_players, int num_nodes) const;
     Color zen_edge_color(const int* hue_troops, int n_players,
                          int transit_total, int num_nodes) const;
-    void draw_state_icon(NodeState state, Vector2 center, float radius) const;
+    void draw_node_shape(NodeState state, Vector2 center, float radius, Color fill, Color outline) const;
+    void draw_star(Vector2 center, float radius, Color color) const;
     void draw_outlined_text(const char* text, int x, int y, int font_size, Color fg) const;
+
+    static int sides_for_state(NodeState state);
+    static float rotation_for_state(NodeState state);
+    static float scale_for_state(NodeState state);
 
     float base_zoom_ = 1.0f;
     bool zen_mode_ = false;

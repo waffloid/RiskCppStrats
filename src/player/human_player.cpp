@@ -87,7 +87,7 @@ void HumanPlayer::process_input(const Camera2D_Custom& camera, int screen_w, int
         // Released: apply selection
         float radius = std::sqrt((drag_current_.x - drag_start_.x) * (drag_current_.x - drag_start_.x) +
                                  (drag_current_.y - drag_start_.y) * (drag_current_.y - drag_start_.y));
-        auto nodes_in_drag = nodes_in_circle(drag_start_, radius, game);
+        std::set<int> nodes_in_drag = nodes_in_circle(drag_start_, radius, game);
 
         if (radius > 5.0f) {
             // Actual drag (not a click)
@@ -186,7 +186,7 @@ void HumanPlayer::process_input(const Camera2D_Custom& camera, int screen_w, int
         if (send_count > 0) {
             // Queue send from all selected nodes to target
             pending_send_count_ = send_count;
-            pending_send_source_ = -1;  // from all selected
+            // send from all selected nodes
         }
     }
 

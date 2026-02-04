@@ -1,14 +1,24 @@
 #ifndef CRISKY_COLOR_SCHEME_HPP
 #define CRISKY_COLOR_SCHEME_HPP
 
+#include <iterator>
+
 #include "raylib.h"
 
-enum EffectFlags {
-    EFFECT_NONE        = 0,
-    EFFECT_GLOW        = 1 << 0,  // Additive blend glow (Cyberpunk, Retrowave)
-    EFFECT_GRADIENT_BG = 1 << 1,  // Gradient behind noise (Retrowave)
-    EFFECT_SCANLINES   = 1 << 2,  // CRT scanline overlay (Terminal)
+enum class EffectFlags : int {
+    NONE        = 0,
+    GLOW        = 1 << 0,  // Additive blend glow (Cyberpunk, Retrowave)
+    GRADIENT_BG = 1 << 1,  // Gradient behind noise (Retrowave)
+    SCANLINES   = 1 << 2,  // CRT scanline overlay (Terminal)
 };
+
+inline EffectFlags operator|(EffectFlags a, EffectFlags b) {
+    return static_cast<EffectFlags>(static_cast<int>(a) | static_cast<int>(b));
+}
+
+inline bool operator&(EffectFlags a, EffectFlags b) {
+    return (static_cast<int>(a) & static_cast<int>(b)) != 0;
+}
 
 struct ColorScheme {
     const char* name;
@@ -27,12 +37,12 @@ struct ColorScheme {
     Color text_separator;
 
     // Visual effects (bitwise OR of EffectFlags)
-    int effect;
+    EffectFlags effect;
     static constexpr int MAX_GRADIENT_STOPS = 6;
     Color gradient_stops[MAX_GRADIENT_STOPS]; // For EFFECT_GRADIENT_BG
     int gradient_num_stops;                   // For EFFECT_GRADIENT_BG (0 = unused)
-    float glow_radius_mult;  // For EFFECT_GLOW (multiplier of node radius)
-    float glow_intensity;    // For EFFECT_GLOW (alpha value 0-1)
+    float glow_radius_mult;  // For EffectFlags::GLOW (multiplier of node radius)
+    float glow_intensity;    // For EffectFlags::GLOW (alpha value 0-1)
 
     // Computed: high-contrast system color (white or black) based on background luminance
     // Perceptual luminance is non-linear; threshold at ~75/255 so most mid-tone
@@ -85,7 +95,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{60, 55, 50, 100},         // node_outline
         Color{255, 255, 255, 200},      // state_icon
         Color{80, 70, 60, 200},         // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 1: Cyberpunk (neon on dark)
@@ -109,7 +119,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{0, 80, 200, 120},         // node_outline
         Color{200, 220, 255, 220},      // state_icon
         Color{0, 150, 255, 200},        // text_separator
-        EFFECT_GLOW, {}, 0, 2.5f, 0.4f,
+        EffectFlags::GLOW, {}, 0, 2.5f, 0.4f,
     },
 
     // 2: Desert (warm earth tones)
@@ -133,7 +143,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{120, 100, 70, 120},       // node_outline
         Color{100, 80, 60, 200},        // state_icon
         Color{140, 120, 90, 200},       // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 3: Ocean (cool blues and teals)
@@ -157,7 +167,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{30, 80, 100, 120},        // node_outline
         Color{200, 230, 255, 200},      // state_icon
         Color{60, 100, 140, 200},       // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 4: Neon (bright saturated on black)
@@ -181,7 +191,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{80, 80, 80, 150},         // node_outline
         Color{255, 255, 255, 230},      // state_icon
         Color{120, 120, 120, 200},      // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 5: Forest (natural greens)
@@ -205,7 +215,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{50, 40, 30, 120},         // node_outline
         Color{230, 240, 220, 200},      // state_icon
         Color{80, 60, 40, 200},         // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 6: Monochrome (B&W with grey scale)
@@ -229,7 +239,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{60, 60, 60, 120},         // node_outline
         Color{255, 255, 255, 200},      // state_icon
         Color{80, 80, 80, 200},         // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 7: Solarized Dark
@@ -253,7 +263,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{7, 54, 66, 140},          // node_outline (base02)
         Color{238, 232, 213, 200},      // state_icon (base2)
         Color{88, 110, 117, 200},       // text_separator (base01)
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 8: Dracula
@@ -277,7 +287,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{98, 114, 164, 120},       // node_outline
         Color{248, 248, 242, 200},      // state_icon
         Color{98, 114, 164, 200},       // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 9: Monokai
@@ -301,7 +311,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{70, 70, 58, 130},         // node_outline
         Color{248, 248, 242, 200},      // state_icon
         Color{117, 113, 94, 200},       // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 10: Nord
@@ -325,7 +335,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{59, 66, 82, 140},         // node_outline
         Color{229, 233, 240, 200},      // state_icon (snow storm)
         Color{76, 86, 106, 200},        // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 11: Gruvbox
@@ -349,7 +359,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{60, 56, 54, 140},         // node_outline
         Color{235, 219, 178, 200},      // state_icon (fg)
         Color{124, 111, 100, 200},      // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 12: Retrowave (80s synthwave)
@@ -373,7 +383,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{100, 20, 140, 120},       // node_outline
         Color{255, 200, 255, 210},      // state_icon
         Color{180, 80, 220, 200},       // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 13: Volcanic (lava and obsidian)
@@ -397,7 +407,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{80, 30, 10, 130},         // node_outline
         Color{255, 220, 180, 200},      // state_icon
         Color{140, 60, 20, 200},        // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 14: Arctic (ice and aurora)
@@ -421,7 +431,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{170, 185, 200, 120},      // node_outline
         Color{40, 50, 70, 180},         // state_icon (dark for contrast)
         Color{140, 160, 180, 200},      // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 15: Candy (pastel pop)
@@ -445,7 +455,7 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{200, 190, 210, 120},      // node_outline
         Color{80, 60, 100, 170},        // state_icon (dark for contrast)
         Color{180, 160, 200, 200},      // text_separator
-        EFFECT_NONE, {}, 0, 0.0f, 0.0f,
+        EffectFlags::NONE, {}, 0, 0.0f, 0.0f,
     },
 
     // 16: Terminal (green phosphor CRT)
@@ -469,10 +479,10 @@ inline const ColorScheme COLOR_SCHEMES[] = {
         Color{0, 60, 15, 140},          // node_outline
         Color{0, 255, 65, 200},         // state_icon (phosphor green)
         Color{0, 120, 30, 200},         // text_separator
-        EFFECT_SCANLINES, {}, 0, 0.0f, 0.0f,
+        EffectFlags::SCANLINES, {}, 0, 0.0f, 0.0f,
     },
 };
 
-inline const int NUM_COLOR_SCHEMES = sizeof(COLOR_SCHEMES) / sizeof(COLOR_SCHEMES[0]);
+inline constexpr int NUM_COLOR_SCHEMES = static_cast<int>(std::size(COLOR_SCHEMES));
 
 #endif

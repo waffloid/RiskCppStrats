@@ -1,7 +1,8 @@
 #include "renderer/renderer.hpp"
-#include <cstdio>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <numbers>
 
 // --- HSL <-> RGB helpers for zen mode ---
 
@@ -107,17 +108,39 @@ void Renderer::draw_selection_halos(const Game& game, const Camera2D_Custom& cam
 
     for (int node_idx : selected_nodes) {
         const auto& node = graph.nodes[node_idx];
+        const auto& nd = game.node_data()[node_idx];
         Vector2 sp = camera.world_to_screen({node.x, node.y});
-        // Thick halo that touches the node edge and extends outward
-        float thickness = std::max(2.0f, r * 0.25f);
-        DrawRing(sp, r, r + thickness, 0.0f, 360.0f, 64, sys);
+        float rs = r * scale_for_state(nd.state);
+        float thickness = std::max(2.0f, rs * 0.25f);
+
+        int sides = sides_for_state(nd.state);
+        if (sides == 0) {
+            // Circle halo (DEFAULT and POWERPLANT)
+            DrawRing(sp, rs, rs + thickness, 0.0f, 360.0f, 64, sys);
+        } else {
+            // Polygon halo: draw outer and inner polygon, filled between them
+            float rot_deg = rotation_for_state(nd.state);
+            float rot_rad = rot_deg * std::numbers::pi_v<float> / 180.0f;
+            float r_outer = rs + thickness;
+
+            for (int i = 0; i < sides; i++) {
+                float a1 = rot_rad + 2.0f * std::numbers::pi_v<float> * i / sides;
+                float a2 = rot_rad + 2.0f * std::numbers::pi_v<float> * ((i + 1) % sides) / sides;
+                Vector2 outer1 = {sp.x + r_outer * std::cos(a1), sp.y + r_outer * std::sin(a1)};
+                Vector2 outer2 = {sp.x + r_outer * std::cos(a2), sp.y + r_outer * std::sin(a2)};
+                Vector2 inner1 = {sp.x + rs * std::cos(a1), sp.y + rs * std::sin(a1)};
+                Vector2 inner2 = {sp.x + rs * std::cos(a2), sp.y + rs * std::sin(a2)};
+                DrawTriangle(outer1, outer2, inner1, sys);
+                DrawTriangle(inner1, outer2, inner2, sys);
+            }
+        }
     }
 }
 
 void Renderer::draw_background(int screen_w, int screen_h,
                                 const Camera2D_Custom& camera, Texture2D noise_tex) {
     // Optional multi-stop gradient layer underneath
-    if ((scheme_->effect & EFFECT_GRADIENT_BG) && scheme_->gradient_num_stops >= 2) {
+    if ((scheme_->effect & EffectFlags::GRADIENT_BG) && scheme_->gradient_num_stops >= 2) {
         int n = scheme_->gradient_num_stops;
         float band_h = static_cast<float>(screen_h) / (n - 1);
         for (int i = 0; i < n - 1; i++) {
@@ -143,14 +166,14 @@ void Renderer::draw_background(int screen_w, int screen_h,
 
     Rectangle src = {src_x, src_y, static_cast<float>(screen_w), static_cast<float>(screen_h)};
     Rectangle dst = {0, 0, static_cast<float>(screen_w), static_cast<float>(screen_h)};
-    Color tint = (scheme_->effect & EFFECT_GRADIENT_BG)
+    Color tint = (scheme_->effect & EffectFlags::GRADIENT_BG)
                      ? Color{255, 255, 255, 100}
                      : WHITE;
     DrawTexturePro(noise_tex, src, dst, {0, 0}, 0.0f, tint);
 }
 
 void Renderer::draw_scanlines(int screen_w, int screen_h) {
-    if (scheme_->effect & EFFECT_SCANLINES) {
+    if (scheme_->effect & EffectFlags::SCANLINES) {
         for (int y = 0; y < screen_h; y += 3) {
             DrawRectangle(0, y, screen_w, 1, Color{0, 0, 0, 40});
         }
@@ -225,65 +248,87 @@ Color Renderer::zen_edge_color(const int* hue_troops, int n_players,
     return hsl_to_rgb(hsl);
 }
 
-void Renderer::draw_state_icon(NodeState state, Vector2 center, float radius) const {
-    Color icon_col = scheme_->sys_color();
-    float s = radius * 0.55f;
-
+int Renderer::sides_for_state(NodeState state) {
     switch (state) {
-        case NodeState::CAPITAL: {
-            for (int i = 0; i < 5; i++) {
-                float angle1 = -90.0f + i * 72.0f;
-                float angle2 = -90.0f + (i + 2) * 72.0f;
-                float r1 = angle1 * 3.14159265f / 180.0f;
-                float r2 = angle2 * 3.14159265f / 180.0f;
-                Vector2 p1 = {center.x + s * std::cos(r1), center.y + s * std::sin(r1)};
-                Vector2 p2 = {center.x + s * std::cos(r2), center.y + s * std::sin(r2)};
-                DrawLineEx(p1, p2, 1.5f, icon_col);
-            }
-            break;
-        }
-        case NodeState::FACTORY: {
-            float inner = s * 0.4f;
-            DrawCircleLinesV(center, inner, icon_col);
-            for (int i = 0; i < 4; i++) {
-                float angle = i * 90.0f * 3.14159265f / 180.0f;
-                Vector2 p1 = {center.x + inner * std::cos(angle), center.y + inner * std::sin(angle)};
-                Vector2 p2 = {center.x + s * std::cos(angle), center.y + s * std::sin(angle)};
-                DrawLineEx(p1, p2, 2.0f, icon_col);
-            }
-            break;
-        }
-        case NodeState::POWERPLANT: {
-            Vector2 pts[4] = {
-                {center.x + s * 0.1f, center.y - s},
-                {center.x - s * 0.3f, center.y + s * 0.1f},
-                {center.x + s * 0.3f, center.y - s * 0.1f},
-                {center.x - s * 0.1f, center.y + s},
-            };
-            DrawLineEx(pts[0], pts[1], 2.0f, icon_col);
-            DrawLineEx(pts[1], pts[2], 2.0f, icon_col);
-            DrawLineEx(pts[2], pts[3], 2.0f, icon_col);
-            break;
-        }
-        case NodeState::FORT: {
-            Vector2 top = {center.x, center.y - s * 0.8f};
-            Vector2 bl  = {center.x - s * 0.7f, center.y + s * 0.1f};
-            Vector2 br  = {center.x + s * 0.7f, center.y + s * 0.1f};
-            Vector2 bot = {center.x, center.y + s * 0.9f};
-            DrawLineEx(bl, top, 1.5f, icon_col);
-            DrawLineEx(top, br, 1.5f, icon_col);
-            DrawLineEx(br, bot, 1.5f, icon_col);
-            DrawLineEx(bot, bl, 1.5f, icon_col);
-            break;
-        }
-        case NodeState::ARTILLERY: {
-            DrawLineEx({center.x - s, center.y}, {center.x + s, center.y}, 1.5f, icon_col);
-            DrawLineEx({center.x, center.y - s}, {center.x, center.y + s}, 1.5f, icon_col);
-            DrawCircleLinesV(center, s * 0.6f, icon_col);
-            break;
-        }
-        default:
-            break;
+        case NodeState::CAPITAL:    return 5;  // pentagon
+        case NodeState::FACTORY:    return 0;  // circle
+        case NodeState::POWERPLANT: return 0;  // star (custom draw)
+        case NodeState::FORT:       return 6;  // hexagon
+        case NodeState::ARTILLERY:  return 3;  // triangle
+        default:                    return 0;  // circle
+    }
+}
+
+float Renderer::scale_for_state(NodeState state) {
+    switch (state) {
+        case NodeState::FORT:       return 1.10f;
+        case NodeState::CAPITAL:    return 1.15f;
+        case NodeState::ARTILLERY:  return 1.55f;
+        case NodeState::POWERPLANT: return 1.45f;  // star, hand-tuned
+        default:                    return 1.00f;   // circle
+    }
+}
+
+float Renderer::rotation_for_state(NodeState state) {
+    switch (state) {
+        case NodeState::CAPITAL:    return -90.0f;    // point up
+        case NodeState::FORT:       return 0.0f;      // flat top
+        case NodeState::ARTILLERY:  return -90.0f;    // point up
+        default:                    return 0.0f;
+    }
+}
+
+void Renderer::draw_star(Vector2 center, float radius, Color color) const {
+    // 5-pointed star: alternating outer and inner vertices
+    constexpr int points = 5;
+    constexpr float pi = std::numbers::pi_v<float>;
+    float inner_r = radius * 0.45f;  // inner radius ratio for a classic star
+    float rot = -pi / 2.0f;          // point up
+
+    Vector2 verts[10];
+    for (int i = 0; i < points * 2; i++) {
+        float angle = rot + pi * i / points;
+        float r = (i % 2 == 0) ? radius : inner_r;
+        verts[i] = {center.x + r * std::cos(angle),
+                    center.y + r * std::sin(angle)};
+    }
+
+    // Triangle fan from center
+    for (int i = 0; i < points * 2; i++) {
+        DrawTriangle(center, verts[(i + 1) % (points * 2)], verts[i], color);
+    }
+}
+
+void Renderer::draw_node_shape(NodeState state, Vector2 center, float radius, Color fill, Color outline) const {
+    float r = radius * scale_for_state(state);
+
+    if (state == NodeState::POWERPLANT) {
+        draw_star(center, r, fill);
+        return;
+    }
+
+    int sides = sides_for_state(state);
+    if (sides == 0) {
+        // Circle for DEFAULT and FACTORY
+        DrawCircleV(center, r, fill);
+        DrawCircleLinesV(center, r, outline);
+        return;
+    }
+
+    float rot_deg = rotation_for_state(state);
+    float rot_rad = rot_deg * std::numbers::pi_v<float> / 180.0f;
+
+    // Compute vertices
+    Vector2 verts[6]; // max 6 sides
+    for (int i = 0; i < sides; i++) {
+        float angle = rot_rad + 2.0f * std::numbers::pi_v<float> * i / sides;
+        verts[i] = {center.x + r * std::cos(angle),
+                    center.y + r * std::sin(angle)};
+    }
+
+    // Fill with triangle fan
+    for (int i = 1; i < sides - 1; i++) {
+        DrawTriangle(verts[0], verts[i + 1], verts[i], fill);
     }
 }
 
@@ -316,15 +361,13 @@ void Renderer::draw_edges(const Game& game, const Camera2D_Custom& camera, float
             // Gather transit troops on this edge (real players only)
             int transit[MAX_PLAYERS] = {};
             int transit_total = 0;
-            for (const auto& el : all_el) {
-                if (el.edge_idx == static_cast<int>(ei)) {
-                    for (int lane = 0; lane < 2; lane++)
-                        for (const auto& g : el.lanes[lane].groups)
-                            if (g.owner >= 0 && g.owner < n_real) {
-                                transit[g.owner] += g.count;
-                                transit_total += g.count;
-                            }
-                    break;
+            const EdgeLanes& el = all_el[ei];
+            for (int lane = 0; lane < 2; lane++) {
+                for (const TroopGroup& g : el.lanes[lane].groups) {
+                    if (g.owner >= 0 && g.owner < n_real) {
+                        transit[g.owner] += g.count;
+                        transit_total += g.count;
+                    }
                 }
             }
 
@@ -405,7 +448,7 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
     }
 
     // Glow pass (Cyberpunk / Retrowave)
-    if (scheme_->effect & EFFECT_GLOW) {
+    if (scheme_->effect & EffectFlags::GLOW) {
         BeginBlendMode(BLEND_ADDITIVE);
         for (int i = 0; i < graph.num_nodes(); i++) {
             const auto& node = graph.nodes[i];
@@ -431,7 +474,7 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
 
         float sox = rc_.shadow_offset_x;
         float soy = rc_.shadow_offset_y;
-        DrawCircleV({sp.x + sox, sp.y + soy}, r, scheme_->shadow);
+        draw_node_shape(nd.state, {sp.x + sox, sp.y + soy}, r, scheme_->shadow, scheme_->shadow);
 
         Color fill;
         if (zen_mode_) {
@@ -442,10 +485,7 @@ void Renderer::draw_node_circles(const Game& game, const Camera2D_Custom& camera
         } else {
             fill = color_for_player(nd.owner);
         }
-        DrawCircleV(sp, r, fill);
-        DrawCircleLinesV(sp, r, scheme_->node_outline);
-
-        draw_state_icon(nd.state, sp, r);
+        draw_node_shape(nd.state, sp, r, fill, scheme_->node_outline);
     }
 }
 

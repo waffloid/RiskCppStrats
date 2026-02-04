@@ -18,14 +18,14 @@ struct TroopSendConfig {
 class HumanPlayer : public PlayerInterface {
 public:
     HumanPlayer();
-    virtual ~HumanPlayer() = default;
+    ~HumanPlayer() override = default;
 
     // Called once per frame to update input state
     void process_input(const Camera2D_Custom& camera, int screen_w, int screen_h,
                        const class Game& game, int player_id);
 
     // Called once per tick to generate commands from accumulated input
-    virtual void decide(const class Game& game, int player_id, PlayerCommands& out) override;
+    void decide(const class Game& game, int player_id, PlayerCommands& out) override;
 
     // Render UI: selected nodes, drag circle, etc.
     void render(const Camera2D_Custom& camera, int screen_w, int screen_h,
@@ -42,7 +42,6 @@ private:
     std::set<int> selected_nodes_;     // currently selected nodes
     int target_node_ = -1;             // hovered target node
     int pending_send_count_ = 0;       // troops queued to send
-    int pending_send_source_ = -1;     // source node for queued send
     bool pending_build_ = false;       // queue a structure build
     int pending_build_node_ = -1;      // node to build on (hovered)
     NodeState pending_structure_ = NodeState::DEFAULT;

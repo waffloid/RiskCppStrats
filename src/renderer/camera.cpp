@@ -1,6 +1,7 @@
 #include "renderer/camera.hpp"
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 void Camera2D_Custom::fit_to_graph(const Graph& graph, int screen_w, int screen_h, float padding) {
     screen_w_ = screen_w;
@@ -89,7 +90,7 @@ void Camera2D_Custom::update() {
     if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))   sx -= 1.0f;
     if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))  sx += 1.0f;
     if (sx != 0.0f || sy != 0.0f) {
-        float rad = -rotation_ * (3.14159265f / 180.0f);
+        float rad = -rotation_ * (std::numbers::pi_v<float> / 180.0f);
         float cos_r = std::cos(rad);
         float sin_r = std::sin(rad);
         float wx = sx * cos_r - sy * sin_r;
@@ -108,7 +109,7 @@ Vector2 Camera2D_Custom::world_to_screen(Vector2 world) const {
     Vector2 screen_center = {screen_w_ * 0.5f, screen_h_ * 0.5f};
     float dx = (world.x - offset_.x) * zoom_;
     float dy = (world.y - offset_.y) * zoom_;
-    float rad = rotation_ * (3.14159265f / 180.0f);
+    float rad = rotation_ * (std::numbers::pi_v<float> / 180.0f);
     float cos_r = std::cos(rad);
     float sin_r = std::sin(rad);
     return {
@@ -121,7 +122,7 @@ Vector2 Camera2D_Custom::screen_to_world(Vector2 screen) const {
     Vector2 screen_center = {screen_w_ * 0.5f, screen_h_ * 0.5f};
     float sx = screen.x - screen_center.x;
     float sy = screen.y - screen_center.y;
-    float rad = -rotation_ * (3.14159265f / 180.0f);
+    float rad = -rotation_ * (std::numbers::pi_v<float> / 180.0f);
     float cos_r = std::cos(rad);
     float sin_r = std::sin(rad);
     float rx = sx * cos_r - sy * sin_r;
