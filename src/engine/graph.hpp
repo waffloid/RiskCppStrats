@@ -2,9 +2,8 @@
 #define CRISKY_GRAPH_HPP
 
 #include <cstdint>
-#include <cmath>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "game_config.hpp"
 

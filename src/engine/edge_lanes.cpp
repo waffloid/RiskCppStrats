@@ -9,14 +9,10 @@ float compute_displacement(int count, float dt, float edge_length, const GameCon
     return clamped / edge_length;
 }
 
-static float aggregation_radius(int count, const GameConfig& config) {
-    return config.radius_factor * std::sqrt(static_cast<float>(count)) + config.aggregation_buffer;
-}
-
 void insert_troop_group(EdgeLanes& el, int origin_node, int owner, int count,
                         int global_dest_node) {
     int lane_idx = (origin_node == el.node_a) ? 0 : 1;
-    auto& groups = el.lanes[lane_idx].groups;
+    std::vector<TroopGroup>& groups = el.lanes[lane_idx].groups;
 
     TroopGroup g;
     g.owner = owner;
@@ -53,7 +49,7 @@ static void advance_lane(Lane& lane, float dt, float edge_length, const GameConf
 // Groups are sorted by position ascending (toward destination).
 // Smaller trailing groups are faster and catch larger leading groups.
 static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_length) {
-    auto& groups = lane.groups;
+    std::vector<TroopGroup>& groups = lane.groups;
     if (groups.size() < 2) return;
 
     // Groups sorted by position ascending: index 0 = near origin, last = near dest.
@@ -61,8 +57,8 @@ static void aggregate_lane(Lane& lane, const GameConfig& config, float edge_leng
     // groups[write] is leading (ahead, higher position), groups[i] is trailing (behind).
     int write = static_cast<int>(groups.size()) - 1;
     for (int i = static_cast<int>(groups.size()) - 2; i >= 0; i--) {
-        auto& trailing = groups[i];
-        auto& leading = groups[write];
+        TroopGroup& trailing = groups[i];
+        TroopGroup& leading = groups[write];
 
         // Only same-owner, same-direction groups aggregate
         if (trailing.owner != leading.owner ||
@@ -149,7 +145,7 @@ static void resolve_collisions(EdgeLanes& el, const GameConfig& config) {
 // Extract groups that have arrived at their destination (or retreated to origin)
 static void extract_arrivals(Lane& lane, int dest_node, int origin_node,
                              std::vector<Arrival>& arrivals_out) {
-    auto& groups = lane.groups;
+    std::vector<TroopGroup>& groups = lane.groups;
 
     groups.erase(
         std::remove_if(groups.begin(), groups.end(),

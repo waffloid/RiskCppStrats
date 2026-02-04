@@ -3,7 +3,7 @@
 void produce_troops(std::vector<NodeData>& nodes, const Graph& graph,
                     const GameConfig& config) {
     for (int i = 0; i < static_cast<int>(nodes.size()); i++) {
-        auto& nd = nodes[i];
+        NodeData& nd = nodes[i];
         if (nd.owner < 0) continue;
 
         int base_production = 0;
@@ -20,9 +20,9 @@ void produce_troops(std::vector<NodeData>& nodes, const Graph& graph,
 
         // Powerplant bonus: check if any neighbor is a powerplant owned by same player
         if (nd.state == NodeState::CAPITAL || nd.state == NodeState::FACTORY) {
-            const auto& node = graph.nodes[i];
+            const Node& node = graph.nodes[i];
             for (int nbr_idx : node.neighbor_indices) {
-                const auto& nbr = nodes[nbr_idx];
+                const NodeData& nbr = nodes[nbr_idx];
                 if (nbr.state == NodeState::POWERPLANT && nbr.owner == nd.owner) {
                     base_production += config.powerplant_bonus;
                 }

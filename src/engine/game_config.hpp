@@ -9,16 +9,22 @@ struct GameConfig {
     float edge_distance_threshold = 20.0f;
     int max_neighbors = 6;
 
+    // Circular map with holes
+    bool circular = false;
+    int num_holes = 0;
+    float hole_radius_min = 10.0f;
+    float hole_radius_max = 20.0f;
+
     // Troops
     int init_troop_count = 501;
-    float displacement_c1 = 0.5f;   // displacement = min(dt, (c1 + c2/count) * dt)
     float displacement_c2 = 5.0f;
 
     // Combat
-    int attack_divisor = 10;
-    int defense_divisor = 100;
+    float attack_divisor = 100.0f;
+    float defense_divisor = 1000.0f;
     float fort_defense_mult = 1.2f;
     float artillery_attack_mult = 1.5f;
+    float base_dt = 1.0f;  // reference dt for which combat values are tuned
 
     // Production
     int capital_troops_per_tick = 2;

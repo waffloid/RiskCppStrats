@@ -19,6 +19,8 @@ struct Lane {
     std::vector<TroopGroup> groups;
 };
 
+enum class LaneDirection : int { A_TO_B = 0, B_TO_A = 1 };
+
 // Arrival: a troop group that has reached its local destination
 struct Arrival {
     int arrived_at_node;     // the node this group reached

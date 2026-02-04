@@ -1,6 +1,7 @@
 #include "graph.hpp"
 
 #include <algorithm>
+#include <numbers>
 #include <random>
 
 Graph Graph::generate_poisson(const GameConfig& config, uint64_t seed) {
@@ -13,16 +14,83 @@ Graph Graph::generate_poisson(const GameConfig& config, uint64_t seed) {
     std::poisson_distribution<int> count_dist(expected_count);
     int n = count_dist(rng);
 
-    // Sample points uniformly in the region
+    // Circular map setup
+    float cx = config.region_width * 0.5f;
+    float cy = config.region_height * 0.5f;
+    float map_r = std::min(cx, cy);
+    float map_r_sq = map_r * map_r;
+
+    // Generate holes (random centers inside the circle, not too close to edge)
+    struct Hole { float x, y, r; };
+    std::vector<Hole> holes;
+    if (config.circular && config.num_holes > 0) {
+        std::uniform_real_distribution<float> r_dist(config.hole_radius_min, config.hole_radius_max);
+        std::uniform_real_distribution<float> angle_dist(0.0f, 2.0f * std::numbers::pi_v<float>);
+        // Place holes at varying distances from center, avoiding overlap
+        for (int h = 0; h < config.num_holes; h++) {
+            for (int attempt = 0; attempt < 50; attempt++) {
+                float hr = r_dist(rng);
+                float angle = angle_dist(rng);
+                // Place between 20% and 75% of map radius from center
+                std::uniform_real_distribution<float> d_dist(map_r * 0.2f, map_r * 0.75f);
+                float dist = d_dist(rng);
+                float hx = cx + dist * std::cos(angle);
+                float hy = cy + dist * std::sin(angle);
+                // Check hole fits inside circle
+                float edge_dist_sq = (hx - cx) * (hx - cx) + (hy - cy) * (hy - cy);
+                if (std::sqrt(edge_dist_sq) + hr > map_r * 0.9f) continue;
+                // Check no overlap with existing holes (min gap = 5)
+                bool overlap = false;
+                for (const auto& existing : holes) {
+                    float dx = hx - existing.x;
+                    float dy = hy - existing.y;
+                    if (std::sqrt(dx * dx + dy * dy) < hr + existing.r + 5.0f) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                if (!overlap) {
+                    holes.push_back({hx, hy, hr});
+                    break;
+                }
+            }
+        }
+    }
+
+    // Sample points uniformly in the region, rejecting those outside circle/inside holes
     std::uniform_real_distribution<float> x_dist(0.0f, config.region_width);
     std::uniform_real_distribution<float> y_dist(0.0f, config.region_height);
 
     g.nodes.reserve(n);
-    for (int i = 0; i < n; i++) {
+    int idx = 0;
+    // Oversample to compensate for rejection (circle ~78.5% of rect, minus holes)
+    int max_attempts = n * 4;
+    for (int attempt = 0; attempt < max_attempts && idx < n; attempt++) {
+        float px = x_dist(rng);
+        float py = y_dist(rng);
+
+        if (config.circular) {
+            // Reject outside circle
+            float dx = px - cx;
+            float dy = py - cy;
+            if (dx * dx + dy * dy > map_r_sq) continue;
+            // Reject inside holes
+            bool in_hole = false;
+            for (const auto& hole : holes) {
+                float hdx = px - hole.x;
+                float hdy = py - hole.y;
+                if (hdx * hdx + hdy * hdy < hole.r * hole.r) {
+                    in_hole = true;
+                    break;
+                }
+            }
+            if (in_hole) continue;
+        }
+
         Node node;
-        node.x = x_dist(rng);
-        node.y = y_dist(rng);
-        node.idx = i;
+        node.x = px;
+        node.y = py;
+        node.idx = idx++;
         g.nodes.push_back(node);
     }
 
