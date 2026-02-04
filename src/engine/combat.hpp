@@ -10,6 +10,6 @@
 // all_nodes is needed for artillery (boosts attack at neighboring nodes).
 void resolve_combat(NodeData& node_data, int node_idx,
                     const Graph& graph, const std::vector<NodeData>& all_nodes,
-                    int n_players, const GameConfig& config);
+                    int n_players, const GameConfig& config, float dt);
 
 #endif
