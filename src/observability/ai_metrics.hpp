@@ -1,6 +1,29 @@
 #ifndef CRISKY_AI_METRICS_HPP
 #define CRISKY_AI_METRICS_HPP
 
+#include <string>
+#include <vector>
+
+// Snapshot of one sub-agent's output (pre- and post-softmax).
+struct SubAgentSnapshot {
+    std::string name;
+    float weight = 0.0f;
+    float beta = 1.0f;
+    std::vector<float> raw_scores;     // pre-softmax
+    std::vector<float> distribution;   // post-softmax
+};
+
+// Full snapshot of the distribution pipeline for one tick.
+// Populated by DistributionAIPlayer when metrics_enabled_.
+struct AIDecisionSnapshot {
+    std::vector<SubAgentSnapshot> sub_agents;
+    std::vector<float> pooled;         // weighted pool (pre-EMA)
+    std::vector<float> smoothed;       // post-EMA (final distribution)
+    std::vector<float> gradient;       // deficit signal
+    std::vector<int> current_troops;   // per-node troop count for this player
+    int total_owned_troops = 0;
+};
+
 // Per-tick snapshot of AI decision quality for one player.
 // Populated by DistributionAIPlayer and its sub-agents during decide().
 struct AIMetricsSnapshot {

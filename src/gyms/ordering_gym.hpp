@@ -16,6 +16,10 @@ struct OrderingGymResult {
     int total_ticks = 0;                      // ticks to complete all builds
     float accumulated_production = 0.0f;      // integral of production rate over time
     int n_steps = 0;                          // number of build steps
+
+    // Per-tick production rate (size = total_ticks). Shows flat segments
+    // between builds with jumps after each build completes.
+    std::vector<float> production_per_tick;
 };
 
 // Run an ordering gym experiment.

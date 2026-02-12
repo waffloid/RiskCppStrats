@@ -4,6 +4,7 @@
 #include <numeric>
 
 #include "ai/distribution.hpp"
+#include "systems/transport/potential_solvers.hpp"
 
 static bool approx(float a, float b, float tol = 1e-4f) {
     return std::fabs(a - b) < tol;
@@ -138,6 +139,30 @@ void test_gradient_balanced() {
     printf("test_gradient_balanced passed\n");
 }
 
+void test_potential_deficit() {
+    // potential_deficit should produce the same result as distribution_to_gradient
+    TroopDistribution dist;
+    dist.weights = {0.5f, 0.3f, 0.2f};
+    std::vector<int> current = {100, 0, 0};
+    int total = 100;
+
+    // Use a dummy graph (potential_deficit ignores it for the deficit solver)
+    Graph g;
+    Node n0; n0.x = 0; n0.y = 0; n0.idx = 0;
+    Node n1; n1.x = 1; n1.y = 0; n1.idx = 1;
+    Node n2; n2.x = 2; n2.y = 0; n2.idx = 2;
+    g.nodes = {n0, n1, n2};
+
+    std::vector<float> pot = potential_deficit(g, current, dist, total);
+    std::vector<float> grad = distribution_to_gradient(dist, current, total);
+
+    assert(pot.size() == grad.size());
+    for (int i = 0; i < 3; i++) {
+        assert(approx(pot[i], grad[i]));
+    }
+    printf("test_potential_deficit passed\n");
+}
+
 int main() {
     test_softmax_uniform();
     test_softmax_peaked();
@@ -150,6 +175,7 @@ int main() {
     test_ema_blending();
     test_gradient_deficit();
     test_gradient_balanced();
+    test_potential_deficit();
     printf("\nAll distribution tests passed.\n");
     return 0;
 }

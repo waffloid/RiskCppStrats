@@ -23,7 +23,8 @@ float frontier_target_cost(const Game& game, int node_idx, int player_id) {
     return total_enemy_troops;
 }
 
-float frontier_target_value(const Game& game, int node_idx, int player_id) {
+float frontier_target_value(const Game& game, int node_idx, int player_id,
+                            const ModelConfig& cfg) {
     const auto& nd = game.node_data()[node_idx];
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
@@ -40,25 +41,25 @@ float frontier_target_value(const Game& game, int node_idx, int player_id) {
                 }
             }
         }
-        value += 2.0f * static_cast<float>(powered_production);
+        value += cfg.war_powerplant_value * static_cast<float>(powered_production);
     }
 
     if (nd.state == NodeState::FACTORY && nd.owner >= 0 && nd.owner != player_id) {
-        value += 1.0f;
+        value += cfg.war_factory_value;
         for (int nbr : graph.neighbors(node_idx)) {
             const auto& nbd = nodes_data[nbr];
             if (nbd.owner == nd.owner && nbd.state == NodeState::POWERPLANT) {
-                value += 2.0f;
+                value += cfg.war_powerplant_value;
             }
         }
     }
 
     if (nd.state == NodeState::CAPITAL) {
-        value += 5.0f;
+        value += cfg.war_capital_value;
     }
 
     if (nd.state == NodeState::ARTILLERY && nd.owner >= 0 && nd.owner != player_id) {
-        value += 3.0f;
+        value += cfg.war_artillery_value;
     }
 
     return value;
@@ -67,7 +68,8 @@ float frontier_target_value(const Game& game, int node_idx, int player_id) {
 // --- Frontier extraction ---
 
 std::vector<FrontierTarget> extract_frontier(const Game& game, int player_id,
-                                              float& budget_out) {
+                                              float& budget_out,
+                                              const ModelConfig& cfg) {
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
     int n = graph.num_nodes();
@@ -109,7 +111,7 @@ std::vector<FrontierTarget> extract_frontier(const Game& game, int player_id,
         FrontierTarget ft;
         ft.node_idx = target;
         ft.cost = frontier_target_cost(game, target, player_id);
-        ft.value = frontier_target_value(game, target, player_id);
+        ft.value = frontier_target_value(game, target, player_id, cfg);
         ft.ratio = (ft.cost > 0.0f) ? ft.value / ft.cost : 1e6f;
         targets.push_back(ft);
     }
@@ -261,7 +263,8 @@ std::vector<TroopCommand> v2_solve_attacks(
 
 // --- Shared war context ---
 
-WarContext build_war_context(const Game& game, int player_id) {
+WarContext build_war_context(const Game& game, int player_id,
+                             const ModelConfig& cfg) {
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
     int n = graph.num_nodes();
@@ -298,7 +301,7 @@ WarContext build_war_context(const Game& game, int player_id) {
         V2Target t;
         t.node_idx = target_idx;
         t.cost = frontier_target_cost(game, target_idx, player_id);
-        t.value = frontier_target_value(game, target_idx, player_id);
+        t.value = frontier_target_value(game, target_idx, player_id, cfg);
 
         for (int nbr : graph.neighbors(target_idx)) {
             if (ctx.our_nodes.find(nbr) != ctx.our_nodes.end()) {

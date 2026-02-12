@@ -9,6 +9,7 @@
 #include "graph.hpp"
 #include "edge_lanes.hpp"
 #include "engine/player_interface.hpp"
+#include "systems/combat/combat_resolver.hpp"
 
 class Game {
 public:
@@ -44,6 +45,7 @@ private:
     Graph graph_;
     std::vector<NodeData> node_data_;
     std::vector<EdgeLanes> edge_lanes_;
+    CombatState combat_state_;
     std::vector<bool> alive_;
     float time_ = 0.0f;
     float accumulated_production_time_ = 0.0f;  // for tick-based production (invariant across speeds)

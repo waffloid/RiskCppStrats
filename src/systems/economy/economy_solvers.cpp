@@ -1,6 +1,8 @@
 #include "systems/economy/economy_solvers.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <random>
 #include <queue>
 #include <unordered_set>
 
@@ -150,12 +152,126 @@ BuildPlan economy_solver_bootstrap(
 // ── Stubs ──────────────────────────────────────────────────────
 
 BuildPlan economy_solver_mcmc(
-    const Graph& /*graph*/,
-    const std::vector<NodeData>& /*nodes*/,
-    int /*player_id*/,
-    const GameConfig& /*config*/) {
-    // TODO: MCMC over assignments, maximize production rate.
-    return BuildPlan{};
+    const Graph& graph,
+    const std::vector<NodeData>& nodes,
+    int player_id,
+    const GameConfig& config) {
+    return economy_solver_mcmc_traced(graph, nodes, player_id, config, 2000, 5.0f, nullptr);
+}
+
+BuildPlan economy_solver_mcmc_traced(
+    const Graph& graph,
+    const std::vector<NodeData>& nodes,
+    int player_id,
+    const GameConfig& config,
+    int iterations,
+    float initial_temp,
+    MCMCTrace* trace) {
+
+    int n = graph.num_nodes();
+    if (n == 0) return BuildPlan{};
+
+    // Find owned non-capital nodes (candidates for building assignment)
+    std::vector<int> candidates;
+    for (int i = 0; i < n; i++) {
+        if (nodes[i].owner == player_id && nodes[i].state != NodeState::CAPITAL) {
+            candidates.push_back(i);
+        }
+    }
+    if (candidates.empty()) return BuildPlan{};
+
+    // Working copy of node data for assignment manipulation
+    std::vector<NodeData> work = nodes;
+
+    // Initialize: start from greedy solution for a warm start
+    BuildPlan greedy = economy_solver_greedy(graph, nodes, player_id, config);
+    for (const auto& step : greedy.steps) {
+        if (step.node_idx >= 0 && step.node_idx < n) {
+            work[step.node_idx].state = step.structure;
+        }
+    }
+
+    float current_prod = compute_production_rate(graph, work, player_id, config);
+    float best_prod = current_prod;
+    std::vector<NodeData> best_state = work;
+
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> node_dist(0, static_cast<int>(candidates.size()) - 1);
+    std::uniform_real_distribution<float> accept_dist(0.0f, 1.0f);
+
+    // Possible building states for candidates
+    const NodeState options[] = {NodeState::DEFAULT, NodeState::FACTORY, NodeState::POWERPLANT};
+    std::uniform_int_distribution<int> state_dist(0, 2);
+
+    if (trace) {
+        trace->initial_production = current_prod;
+        trace->iterations = iterations;
+        trace->accepted = 0;
+        trace->improvements = 0;
+    }
+
+    for (int iter = 0; iter < iterations; iter++) {
+        // Temperature schedule: linear cooling
+        float temp = initial_temp * (1.0f - static_cast<float>(iter) / static_cast<float>(iterations));
+        temp = std::max(temp, 0.01f);
+
+        // Pick a random candidate node and a random new state
+        int ci = node_dist(rng);
+        int node_idx = candidates[ci];
+        NodeState old_state = work[node_idx].state;
+        NodeState new_state = options[state_dist(rng)];
+        if (new_state == old_state) {
+            // Still record trace for this iteration
+            if (trace) {
+                trace->production_per_iter.push_back(current_prod);
+                trace->best_production_per_iter.push_back(best_prod);
+            }
+            continue;
+        }
+
+        // Apply change and measure
+        work[node_idx].state = new_state;
+        float new_prod = compute_production_rate(graph, work, player_id, config);
+
+        float delta = new_prod - current_prod;
+        bool accept = false;
+        if (delta > 0.0f) {
+            accept = true;
+            if (trace) trace->improvements++;
+        } else if (temp > 0.01f) {
+            float prob = std::exp(delta / temp);
+            accept = accept_dist(rng) < prob;
+        }
+
+        if (accept) {
+            current_prod = new_prod;
+            if (trace) trace->accepted++;
+            if (current_prod > best_prod) {
+                best_prod = current_prod;
+                best_state = work;
+            }
+        } else {
+            work[node_idx].state = old_state;  // revert
+        }
+
+        if (trace) {
+            trace->production_per_iter.push_back(current_prod);
+            trace->best_production_per_iter.push_back(best_prod);
+        }
+    }
+
+    if (trace) trace->final_production = best_prod;
+
+    // Extract BuildPlan from best state
+    BuildPlan plan;
+    for (int i = 0; i < n; i++) {
+        if (best_state[i].owner != player_id) continue;
+        if (best_state[i].state == NodeState::FACTORY || best_state[i].state == NodeState::POWERPLANT) {
+            plan.steps.push_back({i, best_state[i].state});
+        }
+    }
+    plan.estimated_production = best_prod;
+    return plan;
 }
 
 BuildPlan economy_solver_branch_bound(

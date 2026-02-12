@@ -6,13 +6,13 @@
 void KnapsackWarSubAgent::score(const Game& game, int player_id,
                                  std::vector<float>& scores_out,
                                  PlayerCommands& direct_commands_out) {
-    auto ctx = build_war_context(game, player_id);
+    auto ctx = build_war_context(game, player_id, config_);
     if (ctx.targets.empty()) return;
 
     // Score front-line nodes
     for (const auto& t : ctx.targets) {
         for (int nbr : t.our_neighbors) {
-            scores_out[nbr] += FRONT_LINE_SCORE * t.value;
+            scores_out[nbr] += config_.war_front_line_score * t.value;
         }
     }
 
@@ -25,7 +25,7 @@ void KnapsackWarSubAgent::score(const Game& game, int player_id,
     // Metrics: knapsack ratio + v2 efficiency
     if (metrics_out) {
         float budget = 0.0f;
-        auto frontier = extract_frontier(game, player_id, budget);
+        auto frontier = extract_frontier(game, player_id, budget, config_);
         if (!frontier.empty()) {
             auto greedy_sel  = knapsack_greedy(frontier, budget);
             auto optimal_sel = knapsack_optimal(frontier, budget);

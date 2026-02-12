@@ -6,24 +6,25 @@
 #include <vector>
 
 #include "engine/game.hpp"
+#include "ai/model_config.hpp"
 #include "ai/players/distribution_ai_player.hpp"
 #include "ai/sub_agents/economy_agent.hpp"
 #include "ai/sub_agents/expansion_agent.hpp"
 #include "ai/sub_agents/direct_war_agent.hpp"
-#include "ai/sub_agents/bootstrap_economy_agent.hpp"
 #include "ai/players/passive_player.hpp"
 
-// --- Individual: 3 weights for v3_bootstrap sub-agents ---
+// --- Individual: 3 weights for v3 sub-agents ---
 struct Individual {
-    float w[3]; // [0]=BootstrapEconomy, [1]=Expansion, [2]=DirectWar
+    float w[3]; // [0]=Economy, [1]=Expansion, [2]=DirectWar
     float fitness = 0.0f;
 };
 
 static std::unique_ptr<PlayerInterface> make_ai(int player_id, const float w[3]) {
-    auto ai = std::make_unique<DistributionAIPlayer>(player_id, DistributionAIPlayer::NoDefaults{});
-    ai->add_sub_agent(std::make_unique<BootstrapEconomySubAgent>(), w[0]);
-    ai->add_sub_agent(std::make_unique<ExpansionSubAgent>(), w[1]);
-    ai->add_sub_agent(std::make_unique<DirectWarSubAgent>(), w[2]);
+    ModelConfig cfg;
+    auto ai = std::make_unique<DistributionAIPlayer>(player_id, cfg);
+    ai->add_sub_agent(std::make_unique<EconomySubAgent>(cfg), w[0]);
+    ai->add_sub_agent(std::make_unique<ExpansionSubAgent>(cfg), w[1]);
+    ai->add_sub_agent(std::make_unique<DirectWarSubAgent>(cfg), w[2]);
     return ai;
 }
 
@@ -98,7 +99,7 @@ int main() {
         game_seeds.push_back(rng());
 
     setbuf(stdout, nullptr); // unbuffered output
-    printf("GA tuning v3_bootstrap weights: [BootstrapEco, Expansion, DirectWar]\n");
+    printf("GA tuning v3 weights: [Economy, Expansion, DirectWar]\n");
     printf("Pop=%d, Gens=%d, Games/matchup=%d, Benchmark=%d games vs default\n\n",
            POP_SIZE, GENERATIONS, GAMES_PER_MATCHUP, BENCHMARK_GAMES);
 

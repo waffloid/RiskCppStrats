@@ -9,7 +9,7 @@ add_library(crisky_engine STATIC
     src/engine/graph.cpp
     src/engine/graph_builder.cpp
     src/engine/edge_lanes.cpp
-    src/engine/combat.cpp
+    src/systems/combat/combat_resolver.cpp
     src/engine/production.cpp
     src/engine/routing.cpp
     src/engine/game.cpp
@@ -20,11 +20,16 @@ add_library(crisky_engine STATIC
     src/ai/utils/war_utilities.cpp
     src/ai/sub_agents/knapsack_war_agent.cpp
     src/ai/sub_agents/direct_war_agent.cpp
-    src/ai/sub_agents/bootstrap_economy_agent.cpp
-    src/ai/models.cpp
+    src/ai/models/model_registry.cpp
+    src/ai/models/v0_expansion.cpp
+    src/ai/models/v1_knapsack.cpp
+    src/ai/models/v1_knapsack_hybrid.cpp
+    src/ai/models/v2_knapsack.cpp
+    src/ai/models/v3.cpp
     src/ai/distribution.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
+    src/systems/transport/potential_solvers.cpp
     src/systems/ordering/ordering_solvers.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)
@@ -41,6 +46,66 @@ FetchContent_Declare(raylib
 )
 FetchContent_MakeAvailable(raylib)
 
+# --- Dear ImGui + ImPlot + rlImGui (for debug viz) ---
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG docking
+)
+FetchContent_Declare(implot
+    GIT_REPOSITORY https://github.com/epezent/implot.git
+    GIT_TAG master
+)
+FetchContent_Declare(rlimgui
+    GIT_REPOSITORY https://github.com/raylib-extras/rlImGui.git
+    GIT_TAG main
+)
+
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
+endif()
+FetchContent_GetProperties(implot)
+if(NOT implot_POPULATED)
+    FetchContent_Populate(implot)
+endif()
+FetchContent_GetProperties(rlimgui)
+if(NOT rlimgui_POPULATED)
+    FetchContent_Populate(rlimgui)
+endif()
+
+# Build imgui as a static library (no CMakeLists.txt shipped)
+add_library(imgui_lib STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${implot_SOURCE_DIR}/implot.cpp
+    ${implot_SOURCE_DIR}/implot_items.cpp
+    ${rlimgui_SOURCE_DIR}/rlImGui.cpp
+)
+target_include_directories(imgui_lib PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+    ${implot_SOURCE_DIR}
+    ${rlimgui_SOURCE_DIR}
+)
+target_link_libraries(imgui_lib PUBLIC raylib)
+
+# --- Viz library (panels, overlays, ring_buffer — links imgui + engine) ---
+add_library(crisky_viz STATIC
+    src/viz/panel_host.cpp
+    src/viz/panels/time_series_chart.cpp
+    src/viz/panels/bar_chart.cpp
+    src/viz/panels/graph_heatmap.cpp
+    src/viz/panels/stats_table.cpp
+    src/viz/panels/playback_controls.cpp
+    src/viz/overlays/node_heatmap.cpp
+    src/viz/overlays/gradient_arrows.cpp
+)
+target_include_directories(crisky_viz PUBLIC src/)
+target_link_libraries(crisky_viz PUBLIC imgui_lib crisky_engine)
+
 # --- Interactive game binary ---
 add_executable(crisky_game
     src/apps/game/main.cpp
@@ -48,7 +113,7 @@ add_executable(crisky_game
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )
-target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
+target_link_libraries(crisky_game PRIVATE crisky_engine crisky_viz)
 
 # --- Screenshot tool ---
 add_executable(crisky_screenshots
@@ -121,6 +186,30 @@ target_link_libraries(gym_ordering PRIVATE crisky_gyms)
 add_executable(gym_composed src/apps/gyms/gym_composed.cpp)
 target_link_libraries(gym_composed PRIVATE crisky_gyms)
 
+# --- Combat gym viz (head mode with ImGui panels) ---
+add_executable(gym_combat_viz
+    src/apps/gyms/gym_combat_viz.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
+)
+target_link_libraries(gym_combat_viz PRIVATE crisky_gyms crisky_viz)
+
+# --- Transport gym viz (head mode with ImGui panels) ---
+add_executable(gym_transport_viz
+    src/apps/gyms/gym_transport_viz.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
+)
+target_link_libraries(gym_transport_viz PRIVATE crisky_gyms crisky_viz)
+
+# --- Economy gym viz (head mode with ImGui panels + MCMC trace) ---
+add_executable(gym_economy_viz
+    src/apps/gyms/gym_economy_viz.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
+)
+target_link_libraries(gym_economy_viz PRIVATE crisky_gyms crisky_viz)
+
 # --- Infrastructure tests ---
 add_executable(test_data_sink tests/test_data_sink.cpp)
 target_link_libraries(test_data_sink PRIVATE crisky_systems)
@@ -140,3 +229,7 @@ target_link_libraries(test_ordering_gym PRIVATE crisky_gyms)
 
 add_executable(test_distribution tests/test_distribution.cpp)
 target_link_libraries(test_distribution PRIVATE crisky_engine)
+
+# --- Viz test binary ---
+add_executable(viz_test src/apps/viz_test/main.cpp)
+target_link_libraries(viz_test PRIVATE crisky_viz)

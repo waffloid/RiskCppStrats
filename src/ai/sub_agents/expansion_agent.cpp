@@ -22,7 +22,7 @@ void ExpansionSubAgent::score(const Game& game, int player_id,
             }
         }
         if (adjacent_to_us) {
-            scores_out[node] = BORDER_SCORE;
+            scores_out[node] = config_.expansion_border_score;
         }
     }
 }

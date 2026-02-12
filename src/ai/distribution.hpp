@@ -20,8 +20,8 @@ TroopDistribution pool(const std::vector<const TroopDistribution*>& dists,
 TroopDistribution ema(const TroopDistribution& current,
                        const TroopDistribution& prev, float alpha);
 
-// Deficit signal for transport: gradient[i] = dist[i] * total_troops - current_troops[i]
-// Positive = want more troops here, negative = excess troops here.
+// Deprecated: use potential_deficit() from systems/transport/potential_solvers.hpp
+// Kept for backward compatibility.
 std::vector<float> distribution_to_gradient(const TroopDistribution& dist,
                                              const std::vector<int>& current_troops,
                                              int total_owned_troops);

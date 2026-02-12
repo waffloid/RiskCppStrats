@@ -58,6 +58,7 @@ OrderingGymResult run_ordering_gym(
         while (banked_troops < cost) {
             banked_troops += rate;
             result.accumulated_production += rate;
+            result.production_per_tick.push_back(rate);
             tick++;
         }
 

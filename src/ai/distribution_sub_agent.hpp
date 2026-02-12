@@ -11,6 +11,9 @@ class DistributionSubAgent {
 public:
     virtual ~DistributionSubAgent() = default;
 
+    // Human-readable name for this sub-agent (used in metrics/viz).
+    virtual const char* name() const = 0;
+
     // Produce raw scores (pre-softmax) + optional direct commands.
     // scores_out: per-node raw scores. Higher = want more troops. Unowned nodes should be 0.
     // direct_commands_out: builds, attacks, retreats that bypass the distribution field.

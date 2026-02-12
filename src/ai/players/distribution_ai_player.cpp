@@ -11,12 +11,15 @@
 DistributionAIPlayer::DistributionAIPlayer(int player_id)
     : player_id_(player_id) {
     // Default sub-agents: economy + expansion (same as old AttentionAI defaults)
-    add_sub_agent(std::make_unique<EconomySubAgent>(), 1.0f);
-    add_sub_agent(std::make_unique<ExpansionSubAgent>(), 1.0f);
+    add_sub_agent(std::make_unique<EconomySubAgent>(config_), 1.0f);
+    add_sub_agent(std::make_unique<ExpansionSubAgent>(config_), 1.0f);
 }
 
 DistributionAIPlayer::DistributionAIPlayer(int player_id, NoDefaults)
     : player_id_(player_id) {}
+
+DistributionAIPlayer::DistributionAIPlayer(int player_id, const ModelConfig& cfg)
+    : player_id_(player_id), config_(cfg) {}
 
 void DistributionAIPlayer::add_sub_agent(std::unique_ptr<DistributionSubAgent> agent,
                                           float weight) {
@@ -32,6 +35,7 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
 
     if (metrics_enabled_) {
         metrics_ = AIMetricsSnapshot{};
+        decision_snapshot_ = AIDecisionSnapshot{};
     }
 
     // Collect per-agent distributions and direct commands
@@ -52,7 +56,20 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         slot.agent->score(game, player_id, scratch_scores_, direct_cmds);
 
         // Convert scores → distribution via softmax
-        agent_dists.push_back(softmax(scratch_scores_, slot.agent->beta()));
+        TroopDistribution dist = softmax(scratch_scores_, slot.agent->beta());
+
+        // Capture sub-agent snapshot for viz
+        if (metrics_enabled_) {
+            SubAgentSnapshot snap;
+            snap.name = slot.agent->name();
+            snap.weight = slot.weight;
+            snap.beta = slot.agent->beta();
+            snap.raw_scores = scratch_scores_;
+            snap.distribution = dist.weights;
+            decision_snapshot_.sub_agents.push_back(std::move(snap));
+        }
+
+        agent_dists.push_back(std::move(dist));
         agent_weights.push_back(slot.weight);
     }
 
@@ -62,10 +79,10 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
     TroopDistribution pooled = pool(dist_ptrs, agent_weights);
 
     // EMA smooth against previous tick's distribution
-    TroopDistribution smoothed = ema(pooled, prev_distribution_, ema_alpha);
+    TroopDistribution smoothed = ema(pooled, prev_distribution_, config_.ema_alpha);
     prev_distribution_ = smoothed;
 
-    // Compute total owned troops for gradient
+    // Compute total owned troops for potential
     int total_troops = 0;
     const auto& nodes_data = game.node_data();
     for (int i = 0; i < n; i++) {
@@ -80,8 +97,17 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         current_troops[i] = nodes_data[i].troops[player_id];
     }
 
-    // Compute deficit gradient
-    std::vector<float> gradient = distribution_to_gradient(smoothed, current_troops, total_troops);
+    // Compute potential (deficit signal for transport)
+    std::vector<float> potential = potential_solver_(game.graph(), current_troops, smoothed, total_troops);
+
+    // Capture pipeline-level snapshot for viz
+    if (metrics_enabled_) {
+        decision_snapshot_.pooled = pooled.weights;
+        decision_snapshot_.smoothed = smoothed.weights;
+        decision_snapshot_.gradient = potential;  // viz uses "gradient" field name
+        decision_snapshot_.current_troops = current_troops;
+        decision_snapshot_.total_owned_troops = total_troops;
+    }
 
     // Merge direct commands into output
     out.builds.insert(out.builds.end(), direct_cmds.builds.begin(), direct_cmds.builds.end());
@@ -97,8 +123,8 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         scratch_masked_[i] = direct_sources.count(i) > 0;
     }
 
-    // Execute transport based on gradient (skip masked nodes)
-    execute_transport(game, out, gradient, scratch_masked_);
+    // Execute transport based on potential (skip masked nodes)
+    execute_transport(game, out, potential, scratch_masked_);
 
     // Compute distribution metrics
     if (metrics_enabled_ && n > 0) {
@@ -120,13 +146,12 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         }
         metrics_.distribution_concentration = hhi;
 
-        // Gradient utilization: fraction of positive-gradient nodes that have troops flowing in
+        // Potential utilization: fraction of positive-potential nodes that have troops flowing in
         int positive_nodes = 0;
         int flowing_in = 0;
         for (int i = 0; i < n; i++) {
-            if (gradient[i] > 0.0f) {
+            if (potential[i] > 0.0f) {
                 positive_nodes++;
-                // Check if any troop command targets this node
                 for (const auto& cmd : out.troops) {
                     if (cmd.to_node == i) { flowing_in++; break; }
                 }
@@ -139,40 +164,42 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
 }
 
 void DistributionAIPlayer::execute_transport(const Game& game, PlayerCommands& out,
-                                              const std::vector<float>& gradient,
+                                              const std::vector<float>& potential,
                                               const std::vector<bool>& masked) {
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
     int n = graph.num_nodes();
 
-    // For each owned node with positive available troops and negative gradient
-    // (i.e. excess troops), send troops toward neighboring nodes with positive gradient.
+    int min_send = config_.transport_min_send;
+
+    // For each owned node with surplus (negative potential),
+    // send troops toward neighboring nodes with deficit (positive potential).
     for (int i = 0; i < n; i++) {
         if (masked[i]) continue;
         if (nodes_data[i].owner != player_id_) continue;
 
-        float excess = -gradient[i];  // positive means we have MORE than desired
-        if (excess < static_cast<float>(MIN_TROOPS_TO_SEND)) continue;
+        float excess = -potential[i];  // positive means we have MORE than desired
+        if (excess < static_cast<float>(min_send)) continue;
 
         int available = nodes_data[i].troops[player_id_] - 1;  // keep 1 garrison
-        if (available < MIN_TROOPS_TO_SEND) continue;
+        if (available < min_send) continue;
 
-        // Find best neighbor with positive gradient (wants troops)
+        // Find best neighbor with positive potential (deficit — wants troops)
         int best_nbr = -1;
-        float best_gradient = 0.0f;
+        float best_potential = 0.0f;
         for (int nbr : graph.neighbors(i)) {
-            if (gradient[nbr] > best_gradient) {
-                best_gradient = gradient[nbr];
+            if (potential[nbr] > best_potential) {
+                best_potential = potential[nbr];
                 best_nbr = nbr;
             }
         }
 
         if (best_nbr >= 0) {
             int send = std::min(available, static_cast<int>(excess));
-            send = std::min(send, static_cast<int>(best_gradient + 0.5f));
-            send = std::max(send, MIN_TROOPS_TO_SEND);
+            send = std::min(send, static_cast<int>(best_potential + 0.5f));
+            send = std::max(send, min_send);
             send = std::min(send, available);
-            if (send >= MIN_TROOPS_TO_SEND) {
+            if (send >= min_send) {
                 out.troops.push_back({i, best_nbr, send});
             }
         }

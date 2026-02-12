@@ -2,6 +2,7 @@
 #define CRISKY_WAR_UTILITIES_HPP
 
 #include "ai/distribution_sub_agent.hpp"
+#include "ai/model_config.hpp"
 #include <unordered_set>
 #include <vector>
 
@@ -25,14 +26,16 @@ struct V2Target {
 // --- Target evaluation ---
 
 float frontier_target_cost(const Game& game, int node_idx, int player_id);
-float frontier_target_value(const Game& game, int node_idx, int player_id);
+float frontier_target_value(const Game& game, int node_idx, int player_id,
+                            const ModelConfig& cfg = ModelConfig{});
 
 // --- Frontier extraction ---
 
 // Extract the opposing frontier targets sorted by value/cost ratio (descending).
 // budget_out is set to the total troops on our frontier nodes.
 std::vector<FrontierTarget> extract_frontier(const Game& game, int player_id,
-                                              float& budget_out);
+                                              float& budget_out,
+                                              const ModelConfig& cfg = ModelConfig{});
 
 // --- Knapsack solvers ---
 
@@ -65,6 +68,7 @@ struct WarContext {
 
 // Build territory info, enemy frontier targets (filtered to real live enemies),
 // and available troop counts. Targets are sorted by priority descending.
-WarContext build_war_context(const Game& game, int player_id);
+WarContext build_war_context(const Game& game, int player_id,
+                             const ModelConfig& cfg = ModelConfig{});
 
 #endif

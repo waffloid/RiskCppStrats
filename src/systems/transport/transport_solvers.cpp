@@ -6,7 +6,7 @@
 std::vector<TroopCommand> transport_solver_greedy(
     const Graph& graph,
     const std::vector<NodeData>& nodes,
-    const std::vector<float>& gradient,
+    const std::vector<float>& potential,
     int player_id,
     const std::vector<bool>& masked,
     float outflow_rate,
@@ -26,12 +26,12 @@ std::vector<TroopCommand> transport_solver_greedy(
         const std::vector<int>& nbrs = graph.neighbors(node);
         if (nbrs.empty()) continue;
 
-        // Positive gradient differences to neighbors
-        float self_grad = gradient[node];
+        // Positive potential differences to neighbors
+        float self_pot = potential[node];
         pos_diff.resize(nbrs.size());
         float norm_sq = 0.0f;
         for (size_t i = 0; i < nbrs.size(); i++) {
-            float diff = gradient[nbrs[i]] - self_grad;
+            float diff = potential[nbrs[i]] - self_pot;
             pos_diff[i] = (diff > 0.0f) ? diff : 0.0f;
             norm_sq += pos_diff[i] * pos_diff[i];
         }
@@ -47,7 +47,7 @@ std::vector<TroopCommand> transport_solver_greedy(
         float total_to_send = static_cast<float>(troops_here) * outflow_fraction;
         if (total_to_send < static_cast<float>(min_troops)) continue;
 
-        // Send proportionally to each neighbor with positive gradient diff
+        // Send proportionally to each neighbor with positive potential diff
         for (size_t i = 0; i < nbrs.size(); i++) {
             float allocation = pos_diff[i] / norm_pos;
             int amount = static_cast<int>(total_to_send * allocation);

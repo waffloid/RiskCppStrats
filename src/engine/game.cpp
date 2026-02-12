@@ -1,5 +1,4 @@
 #include "game.hpp"
-#include "combat.hpp"
 #include "production.hpp"
 #include "routing.hpp"
 
@@ -30,8 +29,8 @@ void Game::init_state(const std::vector<int>& capitals) {
     node_data_.resize(graph_.num_nodes());
     for (NodeData& nd : node_data_) {
         nd.troops.assign(n_players_, 0);
-        nd.accumulated_damage.assign(n_players_, 0.0f);
     }
+    combat_state_.init(graph_.num_nodes(), n_players_);
 
     // Place capitals
     alive_.assign(n_players_, true);
@@ -68,8 +67,8 @@ void Game::set_node_state(int node, NodeState state, int owner, int troops) {
     // Clear existing troops and accumulated damage
     for (int p = 0; p < n_players_; p++) {
         nd.troops[p] = 0;
-        nd.accumulated_damage[p] = 0.0f;
     }
+    combat_state_.clear_node(node, n_players_);
     if (owner >= 0 && owner < n_players_) {
         nd.owner = owner;
         nd.troops[owner] = troops;
@@ -221,24 +220,19 @@ void Game::process_arrivals(std::vector<Arrival>& arrivals) {
 }
 
 void Game::resolve_all_combat(float dt) {
-    // Snapshot troop totals before combat
-    tick_deaths_.assign(n_players_, 0);
-    std::vector<int> before(n_players_, 0);
-    for (const auto& nd : node_data_) {
-        for (int p = 0; p < n_players_; p++) before[p] += nd.troops[p];
-    }
+    AllCombatResults results = resolve_all_node_combat(
+        graph_, node_data_, combat_state_, n_players_, config_, dt);
 
+    // Apply casualties to node data
     for (int i = 0; i < graph_.num_nodes(); i++) {
-        resolve_combat(node_data_[i], i, graph_, node_data_, n_players_, config_, dt);
+        for (int p = 0; p < n_players_; p++) {
+            node_data_[i].troops[p] = std::max(
+                node_data_[i].troops[p] - results.per_node[i].casualties[p], 0);
+        }
     }
 
-    // Compute deaths as troop decrease from combat
-    for (const auto& nd : node_data_) {
-        for (int p = 0; p < n_players_; p++) before[p] -= nd.troops[p];
-    }
-    for (int p = 0; p < n_players_; p++) {
-        tick_deaths_[p] = std::max(0, before[p]);
-    }
+    combat_state_ = std::move(results.updated_state);
+    tick_deaths_ = std::move(results.total_deaths);
 }
 
 void Game::produce_all_troops(float dt) {

@@ -230,7 +230,7 @@ void test_scenario_defense_vs_static() {
 
 // Helper: call DirectWarSubAgent::score and return the emitted TroopCommands
 static std::vector<TroopCommand> get_direct_war_commands(const Game& game, int player_id) {
-    DirectWarSubAgent agent;
+    DirectWarSubAgent agent(ModelConfig{});
     int n = game.graph().num_nodes();
     std::vector<float> scores(n, 0.0f);
     PlayerCommands cmds;
@@ -859,7 +859,7 @@ void test_v2_no_retreat_when_overwhelming() {
     game.tick(1.0f, all_cmds);
 
     // Tick 1: troops are in-flight. Check what the solver decides.
-    DirectWarSubAgent agent;
+    DirectWarSubAgent agent(ModelConfig{});
     int n = game.graph().num_nodes();
     std::vector<float> scores(n, 0.0f);
     PlayerCommands cmds1;
@@ -885,7 +885,7 @@ void test_v2_sustained_attack_over_ticks() {
     Game game(config, g, {0, 1});
     game.set_node_state(1, NodeState::DEFAULT, 1, 30);
 
-    DirectWarSubAgent agent;
+    DirectWarSubAgent agent(ModelConfig{});
     int n = game.graph().num_nodes();
     int total_retreats = 0;
 

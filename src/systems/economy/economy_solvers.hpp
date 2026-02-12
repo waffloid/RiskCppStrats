@@ -48,13 +48,34 @@ BuildPlan economy_solver_bootstrap(
 
 // ── Stubs for future solvers ───────────────────────────────────
 
-// MCMC over factory/powerplant assignments.  Maximizes production rate.
-// Not yet implemented — returns an empty plan.
+// Per-iteration trace for MCMC solver (for visualization).
+struct MCMCTrace {
+    std::vector<float> production_per_iter;      // production at each iteration
+    std::vector<float> best_production_per_iter; // best seen so far at each iteration
+    float initial_production = 0.0f;
+    float final_production = 0.0f;
+    int iterations = 0;
+    int accepted = 0;        // total accepted moves
+    int improvements = 0;    // strictly improving moves
+};
+
+// MCMC (simulated annealing) over factory/powerplant assignments.
+// Maximizes production rate by random swaps with Metropolis acceptance.
 BuildPlan economy_solver_mcmc(
     const Graph& graph,
     const std::vector<NodeData>& nodes,
     int player_id,
     const GameConfig& config);
+
+// MCMC with trace output for visualization.
+BuildPlan economy_solver_mcmc_traced(
+    const Graph& graph,
+    const std::vector<NodeData>& nodes,
+    int player_id,
+    const GameConfig& config,
+    int iterations,
+    float initial_temp,
+    MCMCTrace* trace);
 
 // Exact branch-and-bound for the QP.  Feasible for small graphs only.
 // Not yet implemented — returns an empty plan.

@@ -9,21 +9,21 @@
 #include <string>
 #include <vector>
 
-// Greedy gradient-descent transport solver.
+// Greedy potential-driven transport solver.
 // Extracted from DistributionAIPlayer::execute_transport.
 //
 // For each owned, unmasked node with enough troops:
-//   - Compute positive gradient differences to neighbors
-//   - Sigmoid-weighted outflow proportional to gradient strength
-//   - Send troops toward neighbors with higher gradient values
+//   - Compute positive potential differences to neighbors
+//   - Sigmoid-weighted outflow proportional to potential strength
+//   - Send troops toward neighbors with higher potential values
 //
-// gradient[i] is any per-node "desirability" signal:
-//   - In the AI: the attention field
+// potential[i] is any per-node "desirability" signal:
+//   - In the AI: deficit = target_fraction * total - current
 //   - In the transport gym: deficit = target - current
 std::vector<TroopCommand> transport_solver_greedy(
     const Graph& graph,
     const std::vector<NodeData>& nodes,
-    const std::vector<float>& gradient,
+    const std::vector<float>& potential,
     int player_id,
     const std::vector<bool>& masked,
     float outflow_rate = 0.1f,

@@ -2,18 +2,23 @@
 #define CRISKY_KNAPSACK_WAR_AGENT_HPP
 
 #include "ai/utils/war_utilities.hpp"
+#include "ai/model_config.hpp"
 
 // War sub-agent using per-node budget greedy solver with knapsack metrics.
 class KnapsackWarSubAgent : public DistributionSubAgent {
 public:
+    explicit KnapsackWarSubAgent(const ModelConfig& cfg) : config_(cfg) {}
+
+    const char* name() const override { return "knapsack_war"; }
+
     void score(const Game& game, int player_id,
                std::vector<float>& scores_out,
                PlayerCommands& direct_commands_out) override;
 
-    float beta() const override { return 2.0f; }
+    float beta() const override { return config_.war_beta; }
 
 private:
-    static constexpr float FRONT_LINE_SCORE = 5.0f;
+    ModelConfig config_;
 };
 
 #endif

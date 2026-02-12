@@ -8,6 +8,9 @@
 #include <vector>
 
 #include "raylib.h"
+#include "imgui.h"
+#include "implot.h"
+#include "rlImGui.h"
 #include "engine/game.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
@@ -18,6 +21,15 @@
 #include "engine/graph_builder.hpp"
 
 #include "ai/players/passive_player.hpp"
+
+#include "viz/panel_host.hpp"
+#include "viz/ring_buffer.hpp"
+#include "viz/panels/time_series_chart.hpp"
+#include "viz/panels/graph_heatmap.hpp"
+#include "viz/panels/stats_table.hpp"
+#include "viz/panels/playback_controls.hpp"
+#include "viz/overlays/node_heatmap.hpp"
+#include "viz/overlays/gradient_arrows.hpp"
 
 static bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;
@@ -258,6 +270,117 @@ int main(int argc, char* argv[]) {
     InitWindow(screen_w, screen_h, "RiskC++ Strats");
     SetTargetFPS(60);
 
+    // ImGui init
+    rlImGuiSetup(true);
+    ImPlot::CreateContext();
+    ImGuiIO& imgui_io = ImGui::GetIO();
+    imgui_io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    bool show_debug = false;  // toggle with D key
+
+    // Enable AI metrics for DistributionAIPlayers
+    DistributionAIPlayer* tracked_ai = nullptr;
+    for (int i = 0; i < n_real; i++) {
+        if (auto* dp = dynamic_cast<DistributionAIPlayer*>(ais[i].get())) {
+            dp->set_metrics_enabled(true);
+            if (!tracked_ai) tracked_ai = dp;  // track first AI player for viz
+        }
+    }
+
+    // Tick counter (declared early so panel lambdas can capture it)
+    int tick_count = 0;
+
+    // Ring buffers for per-player time-series data
+    RingBuffer<float> buf_troops_total(4096);
+    std::vector<RingBuffer<float>> buf_troops(n_real, RingBuffer<float>(4096));
+    std::vector<RingBuffer<float>> buf_nodes(n_real, RingBuffer<float>(4096));
+
+    // Panel host
+    PanelHost panel_host;
+
+    // Territory chart
+    auto territory_chart = std::make_unique<TimeSeriesChart>("Territory", "Tick", "Nodes");
+    for (int p = 0; p < std::min(n_real, 4); p++) {
+        unsigned int colors[] = {
+            IM_COL32(100, 149, 237, 255), IM_COL32(255, 99, 71, 255),
+            IM_COL32(50, 205, 50, 255), IM_COL32(255, 215, 0, 255)
+        };
+        char label[16];
+        std::snprintf(label, sizeof(label), "P%d", p);
+        territory_chart->add_series(label, colors[p], &buf_nodes[p]);
+    }
+    panel_host.add(std::move(territory_chart));
+
+    // Troops chart
+    auto troops_chart = std::make_unique<TimeSeriesChart>("Troops", "Tick", "Count");
+    for (int p = 0; p < std::min(n_real, 4); p++) {
+        unsigned int colors[] = {
+            IM_COL32(100, 149, 237, 255), IM_COL32(255, 99, 71, 255),
+            IM_COL32(50, 205, 50, 255), IM_COL32(255, 215, 0, 255)
+        };
+        char label[16];
+        std::snprintf(label, sizeof(label), "P%d", p);
+        troops_chart->add_series(label, colors[p], &buf_troops[p]);
+    }
+    panel_host.add(std::move(troops_chart));
+
+    // Distribution & gradient heatmaps (if we have a tracked AI)
+    if (tracked_ai) {
+        panel_host.add(std::make_unique<GraphHeatmap>(
+            "Distribution", &game.graph(),
+            [&]() -> std::vector<float> {
+                return tracked_ai->decision_snapshot().smoothed;
+            }
+        ));
+        panel_host.add(std::make_unique<GraphHeatmap>(
+            "Gradient", &game.graph(),
+            [&]() -> std::vector<float> {
+                return tracked_ai->decision_snapshot().gradient;
+            }
+        ));
+    }
+
+    // Stats table
+    panel_host.add(std::make_unique<StatsTable>("Game Stats", [&]() {
+        std::vector<std::pair<std::string, std::string>> rows;
+        auto fmt = [](const char* f, auto v) {
+            char b[64]; std::snprintf(b, sizeof(b), f, v); return std::string(b);
+        };
+        rows.push_back({"Tick", fmt("%d", tick_count)});
+        rows.push_back({"Nodes", fmt("%d", game.graph().num_nodes())});
+        for (int p = 0; p < n_real; p++) {
+            int nodes = 0, troops = 0;
+            for (int i = 0; i < game.graph().num_nodes(); i++) {
+                if (game.node_data()[i].owner == p) nodes++;
+                if (p < static_cast<int>(game.node_data()[i].troops.size()))
+                    troops += game.node_data()[i].troops[p];
+            }
+            rows.push_back({fmt("P%d Nodes", p), fmt("%d", nodes)});
+            rows.push_back({fmt("P%d Troops", p), fmt("%d", troops)});
+        }
+        return rows;
+    }));
+
+    // Overlays (toggled with H/G keys)
+    std::unique_ptr<NodeHeatmapOverlay> heatmap_overlay;
+    std::unique_ptr<GradientArrowsOverlay> gradient_overlay;
+    if (tracked_ai) {
+        heatmap_overlay = std::make_unique<NodeHeatmapOverlay>(
+            "Distribution Heatmap", &game.graph(),
+            [&]() -> std::vector<float> {
+                return tracked_ai->decision_snapshot().smoothed;
+            }
+        );
+        heatmap_overlay->visible = false;
+
+        gradient_overlay = std::make_unique<GradientArrowsOverlay>(
+            "Gradient Arrows", &game.graph(),
+            [&]() -> std::vector<float> {
+                return tracked_ai->decision_snapshot().gradient;
+            }
+        );
+        gradient_overlay->visible = false;
+    }
+
     // Generate tileable noise background
     const int bg_tile = 256;
     Texture2D bg_tex = {0};
@@ -278,7 +401,6 @@ int main(int argc, char* argv[]) {
     float game_speed = 1.0f;  // ticks per frame at 60 FPS
     float dt = 0.25f;         // one discrete tick
     bool paused = false;
-    int tick_count = 0;
     int game_over_frames = 0; // count frames after game over for auto-exit
 
     // Scheme switch notification
@@ -318,6 +440,15 @@ int main(int argc, char* argv[]) {
         if (IsKeyPressed(KEY_Z)) {
             renderer.set_zen_mode(!renderer.zen_mode());
         }
+        if (IsKeyPressed(KEY_D)) {
+            show_debug = !show_debug;
+        }
+        if (IsKeyPressed(KEY_H) && heatmap_overlay) {
+            heatmap_overlay->visible = !heatmap_overlay->visible;
+        }
+        if (IsKeyPressed(KEY_G) && gradient_overlay) {
+            gradient_overlay->visible = !gradient_overlay->visible;
+        }
 
         if (scheme_notify_timer > 0.0f) {
             scheme_notify_timer -= GetFrameTime();
@@ -343,6 +474,20 @@ int main(int argc, char* argv[]) {
             }
             game.tick(frame_dt, commands);
             tick_count++;
+
+            // Update ring buffers for debug viz
+            if (show_debug) {
+                for (int p = 0; p < n_real; p++) {
+                    int nodes_count = 0, troops_count = 0;
+                    for (int i = 0; i < game.graph().num_nodes(); i++) {
+                        if (game.node_data()[i].owner == p) nodes_count++;
+                        if (p < static_cast<int>(game.node_data()[i].troops.size()))
+                            troops_count += game.node_data()[i].troops[p];
+                    }
+                    buf_nodes[p].push(static_cast<float>(nodes_count));
+                    buf_troops[p].push(static_cast<float>(troops_count));
+                }
+            }
         }
 
         // Draw
@@ -359,6 +504,19 @@ int main(int argc, char* argv[]) {
         // Human player overlay UI (drag circle)
         if (human_player) {
             human_player->render(camera, screen_w, screen_h, game, 0, COLOR_SCHEMES[scheme_idx]);
+        }
+
+        // AI debug overlays (world-space, need BeginMode2D)
+        if (show_debug && (heatmap_overlay || gradient_overlay)) {
+            BeginMode2D(Camera2D{
+                .offset = camera.offset(),
+                .target = {0, 0},
+                .rotation = camera.rotation(),
+                .zoom = camera.zoom()
+            });
+            if (heatmap_overlay) heatmap_overlay->draw();
+            if (gradient_overlay) gradient_overlay->draw();
+            EndMode2D();
         }
 
         // Scanline overlay (Terminal theme)
@@ -389,8 +547,17 @@ int main(int argc, char* argv[]) {
         // Controls help
         DrawText("CLICK: select  SHIFT+CLICK: add/toggle  ALT+CLICK: deselect  DRAG: circle select  SHIFT/ALT+DRAG: add/remove",
                  10, screen_h - 30, 10, DARKGRAY);
-        DrawText("QERF: send troops  1-4: build (Factory/Fort/Power/Arty)  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes  Z: zen",
+        DrawText("QERF: send troops  1-4: build  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes  Z: zen  D: debug  H: heatmap  G: gradient",
                  10, screen_h - 15, 10, DARKGRAY);
+
+        // ImGui debug panels
+        rlImGuiBegin();
+        if (show_debug) {
+            ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
+                                         ImGuiDockNodeFlags_PassthruCentralNode);
+            panel_host.draw();
+        }
+        rlImGuiEnd();
 
         EndDrawing();
 
@@ -437,6 +604,8 @@ int main(int argc, char* argv[]) {
     }
 
     UnloadTexture(bg_tex);
+    ImPlot::DestroyContext();
+    rlImGuiShutdown();
     CloseWindow();
     return 0;
 }
