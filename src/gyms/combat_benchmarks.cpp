@@ -75,21 +75,17 @@ static CombatBenchmark make_grid_5x5() {
     b.config.init_troop_count = 200;
     b.max_ticks = 3000;
 
-    // TODO(human): Define initial territory ownership and troop distribution.
-    // Grid layout (5x5, row-major):
-    //
-    //   0  1  2  3  4
-    //   5  6  7  8  9
-    //  10 11 12 13 14
-    //  15 16 17 18 19
-    //  20 21 22 23 24
-    //
-    // Player 0 capital at node 0 (top-left), Player 1 capital at node 24 (bottom-right).
-    // Add b.overrides.push_back({node, NodeState::DEFAULT, owner, troops}) entries
-    // to give each player initial territory beyond their capital.
-    //
-    // Consider: diagonal split, corner clusters, front-line rows, or scattered outposts.
-    // Example:  b.overrides.push_back({1, NodeState::DEFAULT, 0, 150});
+    // Diagonal split: each player owns their corner triangle.
+    // P0 = top-left triangle, P1 = bottom-right triangle, center contested.
+    //   0* 1  2  .  .
+    //   5  6  .  .  .
+    //  10  .  .  .  .
+    //   .  .  . 18 19
+    //   .  .  . 23 24*
+    for (int node : {1, 2, 5, 6, 10})
+        b.overrides.push_back({node, NodeState::DEFAULT, 0, 150});
+    for (int node : {14, 18, 19, 22, 23})
+        b.overrides.push_back({node, NodeState::DEFAULT, 1, 150});
 
     return b;
 }
