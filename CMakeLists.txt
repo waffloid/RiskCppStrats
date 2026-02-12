@@ -93,6 +93,8 @@ target_include_directories(crisky_systems PUBLIC src/)
 # --- Gyms library (experiment harnesses — no RayLib) ---
 add_library(crisky_gyms STATIC
     src/gyms/economy_gym.cpp
+    src/gyms/combat_benchmarks.cpp
+    src/gyms/combat_gym.cpp
 )
 target_link_libraries(crisky_gyms PUBLIC crisky_systems)
 target_include_directories(crisky_gyms PUBLIC src/)
@@ -101,6 +103,9 @@ target_include_directories(crisky_gyms PUBLIC src/)
 add_executable(gym_economy src/gym_economy.cpp)
 target_link_libraries(gym_economy PRIVATE crisky_gyms)
 
+add_executable(gym_combat src/gym_combat.cpp)
+target_link_libraries(gym_combat PRIVATE crisky_gyms)
+
 # --- Infrastructure tests ---
 add_executable(test_data_sink tests/test_data_sink.cpp)
 target_link_libraries(test_data_sink PRIVATE crisky_systems)
@@ -108,3 +113,6 @@ target_link_libraries(test_data_sink PRIVATE crisky_systems)
 # --- Gym tests ---
 add_executable(test_economy_solvers tests/test_economy_solvers.cpp)
 target_link_libraries(test_economy_solvers PRIVATE crisky_gyms)
+
+add_executable(test_combat_gym tests/test_combat_gym.cpp)
+target_link_libraries(test_combat_gym PRIVATE crisky_gyms)
