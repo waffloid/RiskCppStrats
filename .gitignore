@@ -22,3 +22,6 @@ cmake-build-*/
 
 # compile_commands (generated)
 compile_commands.json
+
+# Experiment output
+output/
