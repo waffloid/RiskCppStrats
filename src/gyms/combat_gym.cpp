@@ -1,7 +1,7 @@
 #include "gyms/combat_gym.hpp"
 #include "systems/combat/combat_solvers.hpp"
 #include "engine/game.hpp"
-#include "player/players/passive_player.hpp"
+#include "ai/players/passive_player.hpp"
 
 CombatGymResult run_combat_gym(
     const CombatBenchmark& benchmark,

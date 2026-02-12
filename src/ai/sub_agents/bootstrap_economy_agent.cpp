@@ -1,4 +1,4 @@
-#include "player/sub_agents/bootstrap_economy_agent.hpp"
+#include "ai/sub_agents/bootstrap_economy_agent.hpp"
 #include "engine/game.hpp"
 #include "systems/economy/economy_solvers.hpp"
 

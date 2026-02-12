@@ -1,4 +1,4 @@
-#include "player/players/human_player.hpp"
+#include "ui/human_player.hpp"
 #include "engine/game.hpp"
 #include <cmath>
 

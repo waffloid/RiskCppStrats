@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 #include "engine/player_interface.hpp"
-#include "player/sub_agents/attention_sub_agent.hpp"
+#include "ai/sub_agents/attention_sub_agent.hpp"
 #include "observability/ai_metrics.hpp"
 
 struct SubAgentSlot {

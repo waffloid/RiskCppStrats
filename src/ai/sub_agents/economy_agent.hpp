@@ -1,7 +1,7 @@
 #ifndef CRISKY_ECONOMY_AGENT_HPP
 #define CRISKY_ECONOMY_AGENT_HPP
 
-#include "player/sub_agents/attention_sub_agent.hpp"
+#include "ai/sub_agents/attention_sub_agent.hpp"
 
 // Economy sub-agent: drives attention toward nodes that need factory/powerplant
 // balance, and emits build commands for structures.

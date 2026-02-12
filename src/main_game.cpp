@@ -12,12 +12,12 @@
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
-#include "player/players/attention_ai_player.hpp"
-#include "player/players/human_player.hpp"
-#include "player/models.hpp"
+#include "ai/players/attention_ai_player.hpp"
+#include "ui/human_player.hpp"
+#include "ai/models.hpp"
 #include "engine/graph_builder.hpp"
 
-#include "player/players/passive_player.hpp"
+#include "ai/players/passive_player.hpp"
 
 static bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;

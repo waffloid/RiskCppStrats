@@ -1,7 +1,7 @@
 #ifndef CRISKY_EXPANSION_AGENT_HPP
 #define CRISKY_EXPANSION_AGENT_HPP
 
-#include "player/sub_agents/attention_sub_agent.hpp"
+#include "ai/sub_agents/attention_sub_agent.hpp"
 
 // Expansion sub-agent: drives attention toward border/unowned/enemy nodes
 // adjacent to our territory, encouraging territorial growth.

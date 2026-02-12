@@ -1,4 +1,4 @@
-#include "player/utils/war_utilities.hpp"
+#include "ai/utils/war_utilities.hpp"
 #include "engine/game.hpp"
 
 #include <algorithm>

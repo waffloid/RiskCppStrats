@@ -1,8 +1,8 @@
 #ifndef CRISKY_BOOTSTRAP_ECONOMY_AGENT_HPP
 #define CRISKY_BOOTSTRAP_ECONOMY_AGENT_HPP
 
-#include "player/sub_agents/attention_sub_agent.hpp"
-#include "player/sub_agents/economy_agent.hpp"
+#include "ai/sub_agents/attention_sub_agent.hpp"
+#include "ai/sub_agents/economy_agent.hpp"
 #include "engine/game_state.hpp"
 
 #include <vector>

@@ -1,6 +1,6 @@
-#include "player/players/attention_ai_player.hpp"
-#include "player/sub_agents/economy_agent.hpp"
-#include "player/sub_agents/expansion_agent.hpp"
+#include "ai/players/attention_ai_player.hpp"
+#include "ai/sub_agents/economy_agent.hpp"
+#include "ai/sub_agents/expansion_agent.hpp"
 #include "systems/transport/transport_solvers.hpp"
 #include "engine/game.hpp"
 

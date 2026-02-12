@@ -1,4 +1,4 @@
-#include "player/sub_agents/expansion_agent.hpp"
+#include "ai/sub_agents/expansion_agent.hpp"
 #include "engine/game.hpp"
 
 void ExpansionSubAgent::contribute(const Game& game, int player_id,

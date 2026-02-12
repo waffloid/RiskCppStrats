@@ -1,7 +1,7 @@
 #ifndef CRISKY_COMBAT_SOLVERS_HPP
 #define CRISKY_COMBAT_SOLVERS_HPP
 
-#include "player/models.hpp"
+#include "ai/models.hpp"
 
 // Combat "solver": wraps the model registry.
 // A CombatSolver is a ModelFactory — it creates a PlayerInterface given a player_id.

@@ -1,7 +1,7 @@
 #ifndef CRISKY_WAR_UTILITIES_HPP
 #define CRISKY_WAR_UTILITIES_HPP
 
-#include "player/sub_agents/attention_sub_agent.hpp"
+#include "ai/sub_agents/attention_sub_agent.hpp"
 #include <unordered_set>
 #include <vector>
 

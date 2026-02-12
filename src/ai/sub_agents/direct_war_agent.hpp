@@ -1,11 +1,11 @@
-#ifndef CRISKY_KNAPSACK_WAR_AGENT_HPP
-#define CRISKY_KNAPSACK_WAR_AGENT_HPP
+#ifndef CRISKY_DIRECT_WAR_AGENT_HPP
+#define CRISKY_DIRECT_WAR_AGENT_HPP
 
-#include "player/utils/war_utilities.hpp"
+#include "ai/utils/war_utilities.hpp"
 
-// War sub-agent that uses a per-node budget greedy solver to decide which
-// opposing frontier nodes to attack. Emits TroopCommands directly.
-class KnapsackWarSubAgent : public AttentionSubAgent {
+// War sub-agent forked from KnapsackWarSubAgent for independent iteration
+// on retreat logic and attack commitment. Uses shared war utilities.
+class DirectWarSubAgent : public AttentionSubAgent {
 public:
     void contribute(const Game& game, int player_id,
                     const std::vector<float>& current_attention,

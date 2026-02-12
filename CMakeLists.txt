@@ -14,14 +14,14 @@ add_library(crisky_engine STATIC
     src/engine/routing.cpp
     src/engine/game.cpp
     src/engine/benchmark.cpp
-    src/player/players/attention_ai_player.cpp
-    src/player/sub_agents/economy_agent.cpp
-    src/player/sub_agents/expansion_agent.cpp
-    src/player/utils/war_utilities.cpp
-    src/player/sub_agents/knapsack_war_agent.cpp
-    src/player/sub_agents/direct_war_agent.cpp
-    src/player/sub_agents/bootstrap_economy_agent.cpp
-    src/player/models.cpp
+    src/ai/players/attention_ai_player.cpp
+    src/ai/sub_agents/economy_agent.cpp
+    src/ai/sub_agents/expansion_agent.cpp
+    src/ai/utils/war_utilities.cpp
+    src/ai/sub_agents/knapsack_war_agent.cpp
+    src/ai/sub_agents/direct_war_agent.cpp
+    src/ai/sub_agents/bootstrap_economy_agent.cpp
+    src/ai/models.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
     src/systems/ordering/ordering_solvers.cpp
@@ -43,7 +43,7 @@ FetchContent_MakeAvailable(raylib)
 # --- Interactive game binary ---
 add_executable(crisky_game
     src/main_game.cpp
-    src/player/players/human_player.cpp
+    src/ui/human_player.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )

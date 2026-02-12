@@ -5,7 +5,7 @@
 #include "systems/transport/transport_solvers.hpp"
 #include "gyms/economy_gym.hpp"
 #include "engine/game.hpp"
-#include "player/players/passive_player.hpp"
+#include "ai/players/passive_player.hpp"
 
 #include <cstdio>
 #include <cstdlib>

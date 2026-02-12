@@ -3,13 +3,13 @@
 
 #include "engine/graph_builder.hpp"
 #include "engine/benchmark.hpp"
-#include "player/players/attention_ai_player.hpp"
-#include "player/sub_agents/economy_agent.hpp"
-#include "player/sub_agents/knapsack_war_agent.hpp"
-#include "player/sub_agents/direct_war_agent.hpp"
-#include "player/players/passive_player.hpp"
-#include "player/players/static_defender_player.hpp"
-#include "player/models.hpp"
+#include "ai/players/attention_ai_player.hpp"
+#include "ai/sub_agents/economy_agent.hpp"
+#include "ai/sub_agents/knapsack_war_agent.hpp"
+#include "ai/sub_agents/direct_war_agent.hpp"
+#include "ai/players/passive_player.hpp"
+#include "ai/players/static_defender_player.hpp"
+#include "ai/models.hpp"
 
 // --- Helpers ---
 

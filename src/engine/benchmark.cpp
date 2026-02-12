@@ -1,5 +1,5 @@
 #include "engine/benchmark.hpp"
-#include "player/players/passive_player.hpp"
+#include "ai/players/passive_player.hpp"
 
 ScenarioResult run_scenario(
     const GameConfig& config,

@@ -9,8 +9,8 @@
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
-#include "player/players/attention_ai_player.hpp"
-#include "player/players/passive_player.hpp"
+#include "ai/players/attention_ai_player.hpp"
+#include "ai/players/passive_player.hpp"
 
 static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int bg_tile) {
     Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
