@@ -22,6 +22,7 @@ add_library(crisky_engine STATIC
     src/ai/sub_agents/direct_war_agent.cpp
     src/ai/sub_agents/bootstrap_economy_agent.cpp
     src/ai/models.cpp
+    src/ai/distribution.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
     src/systems/ordering/ordering_solvers.cpp
@@ -136,3 +137,6 @@ target_link_libraries(test_transport_gym PRIVATE crisky_gyms)
 
 add_executable(test_ordering_gym tests/test_ordering_gym.cpp)
 target_link_libraries(test_ordering_gym PRIVATE crisky_gyms)
+
+add_executable(test_distribution tests/test_distribution.cpp)
+target_link_libraries(test_distribution PRIVATE crisky_engine)
