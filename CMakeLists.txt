@@ -22,6 +22,7 @@ add_library(crisky_engine STATIC
     src/player/sub_agents/direct_war_agent.cpp
     src/player/sub_agents/bootstrap_economy_agent.cpp
     src/player/models.cpp
+    src/systems/economy/economy_solvers.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)
 
@@ -90,10 +91,20 @@ target_link_libraries(crisky_systems PUBLIC crisky_engine)
 target_include_directories(crisky_systems PUBLIC src/)
 
 # --- Gyms library (experiment harnesses — no RayLib) ---
-# Placeholder: gym .cpp files added as they're implemented.
-# add_library(crisky_gyms STATIC ...)
-# target_link_libraries(crisky_gyms PUBLIC crisky_systems)
+add_library(crisky_gyms STATIC
+    src/gyms/economy_gym.cpp
+)
+target_link_libraries(crisky_gyms PUBLIC crisky_systems)
+target_include_directories(crisky_gyms PUBLIC src/)
+
+# --- Gym headless binaries ---
+add_executable(gym_economy src/gym_economy.cpp)
+target_link_libraries(gym_economy PRIVATE crisky_gyms)
 
 # --- Infrastructure tests ---
 add_executable(test_data_sink tests/test_data_sink.cpp)
 target_link_libraries(test_data_sink PRIVATE crisky_systems)
+
+# --- Gym tests ---
+add_executable(test_economy_solvers tests/test_economy_solvers.cpp)
+target_link_libraries(test_economy_solvers PRIVATE crisky_gyms)
