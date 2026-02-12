@@ -117,6 +117,9 @@ target_link_libraries(gym_transport PRIVATE crisky_gyms)
 add_executable(gym_ordering src/gym_ordering.cpp)
 target_link_libraries(gym_ordering PRIVATE crisky_gyms)
 
+add_executable(gym_composed src/gym_composed.cpp)
+target_link_libraries(gym_composed PRIVATE crisky_gyms)
+
 # --- Infrastructure tests ---
 add_executable(test_data_sink tests/test_data_sink.cpp)
 target_link_libraries(test_data_sink PRIVATE crisky_systems)
