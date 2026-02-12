@@ -2,7 +2,7 @@
 #define CRISKY_AI_METRICS_HPP
 
 // Per-tick snapshot of AI decision quality for one player.
-// Populated by AttentionAIPlayer and its sub-agents during decide().
+// Populated by DistributionAIPlayer and its sub-agents during decide().
 struct AIMetricsSnapshot {
     int tick = 0;
     int player_id = -1;
@@ -21,12 +21,10 @@ struct AIMetricsSnapshot {
     float v2_efficiency      = 0.0f;   // value / troops (0 if none spent)
     int   v2_targets_attacked = 0;
 
-    // Attention field quality.
-    float attention_entropy       = 0.0f; // Shannon entropy of softmax(attention)
-    float attention_gradient_util = 0.0f; // fraction of owned nodes with positive outflow
-    float attention_max           = 0.0f;
-    float attention_min           = 0.0f;
-    float attention_range         = 0.0f;
+    // Distribution field quality.
+    float distribution_entropy       = 0.0f; // Shannon entropy of troop distribution
+    float distribution_gradient_util = 0.0f; // fraction of positive-gradient nodes with inflow
+    float distribution_concentration = 0.0f; // Herfindahl index (sum of squared weights)
 };
 
 // Per-tick game-level metrics for one player (computed externally by MetricsCollector).

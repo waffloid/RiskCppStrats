@@ -22,7 +22,7 @@ void MetricsWriter::write_tick(int tick,
         if (p < static_cast<int>(ai_snapshots.size()) && ai_snapshots[p]) {
             ps.knapsack_ratio.add(ai_snapshots[p]->knapsack_ratio);
             ps.v2_efficiency.add(ai_snapshots[p]->v2_efficiency);
-            ps.attention_entropy.add(ai_snapshots[p]->attention_entropy);
+            ps.distribution_entropy.add(ai_snapshots[p]->distribution_entropy);
         }
         if (p < static_cast<int>(game_snapshots.size())) {
             ps.economy_efficiency.add(game_snapshots[p].economy_efficiency);
@@ -51,10 +51,10 @@ void MetricsWriter::write_json_line(int tick,
             std::fprintf(file_,
                 ",\"knapsack_ratio\":%.4f,\"knapsack_n_targets\":%d"
                 ",\"v2_efficiency\":%.4f,\"v2_targets_attacked\":%d"
-                ",\"attention_entropy\":%.3f,\"attention_gradient_util\":%.3f",
+                ",\"distribution_entropy\":%.3f,\"distribution_gradient_util\":%.3f",
                 ai[p]->knapsack_ratio, ai[p]->knapsack_n_targets,
                 ai[p]->v2_efficiency, ai[p]->v2_targets_attacked,
-                ai[p]->attention_entropy, ai[p]->attention_gradient_util);
+                ai[p]->distribution_entropy, ai[p]->distribution_gradient_util);
         }
 
         // Game metrics
@@ -85,9 +85,9 @@ void MetricsWriter::print_summary() const {
         std::printf("  V2 efficiency      : mean=%.4f  stdev=%.4f  min=%.4f  max=%.4f\n",
                     ps.v2_efficiency.mean(), ps.v2_efficiency.stdev(),
                     ps.v2_efficiency.min_val, ps.v2_efficiency.max_val);
-        std::printf("  Attention entropy  : mean=%.2f  stdev=%.2f  min=%.2f  max=%.2f\n",
-                    ps.attention_entropy.mean(), ps.attention_entropy.stdev(),
-                    ps.attention_entropy.min_val, ps.attention_entropy.max_val);
+        std::printf("  Distrib. entropy   : mean=%.2f  stdev=%.2f  min=%.2f  max=%.2f\n",
+                    ps.distribution_entropy.mean(), ps.distribution_entropy.stdev(),
+                    ps.distribution_entropy.min_val, ps.distribution_entropy.max_val);
         std::printf("  Economy efficiency : mean=%.3f  stdev=%.3f  min=%.3f  max=%.3f\n",
                     ps.economy_efficiency.mean(), ps.economy_efficiency.stdev(),
                     ps.economy_efficiency.min_val, ps.economy_efficiency.max_val);

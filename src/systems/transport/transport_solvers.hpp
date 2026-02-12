@@ -10,7 +10,7 @@
 #include <vector>
 
 // Greedy gradient-descent transport solver.
-// Extracted from AttentionAIPlayer::execute_troop_flow.
+// Extracted from DistributionAIPlayer::execute_transport.
 //
 // For each owned, unmasked node with enough troops:
 //   - Compute positive gradient differences to neighbors

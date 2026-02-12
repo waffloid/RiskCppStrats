@@ -51,7 +51,7 @@ private:
     struct PlayerStats {
         RunningStats knapsack_ratio;
         RunningStats v2_efficiency;
-        RunningStats attention_entropy;
+        RunningStats distribution_entropy;
         RunningStats economy_efficiency;
         RunningStats territory_fraction;
         RunningStats perimeter_ratio;

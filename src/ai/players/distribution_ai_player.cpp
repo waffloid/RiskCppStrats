@@ -110,7 +110,15 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
                 entropy -= w * std::log(w);
             }
         }
-        metrics_.attention_entropy = entropy;  // TODO: rename to distribution_entropy in Phase 8
+        metrics_.distribution_entropy = entropy;
+
+        // Herfindahl concentration index (sum of squared weights, 1/n = uniform, 1.0 = single node)
+        float hhi = 0.0f;
+        for (int i = 0; i < n; i++) {
+            float w = smoothed.weights[i];
+            hhi += w * w;
+        }
+        metrics_.distribution_concentration = hhi;
 
         // Gradient utilization: fraction of positive-gradient nodes that have troops flowing in
         int positive_nodes = 0;
@@ -124,7 +132,7 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
                 }
             }
         }
-        metrics_.attention_gradient_util = (positive_nodes > 0)
+        metrics_.distribution_gradient_util = (positive_nodes > 0)
             ? static_cast<float>(flowing_in) / static_cast<float>(positive_nodes)
             : 0.0f;
     }
