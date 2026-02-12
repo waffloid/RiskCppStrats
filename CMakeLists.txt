@@ -24,6 +24,7 @@ add_library(crisky_engine STATIC
     src/player/models.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
+    src/systems/ordering/ordering_solvers.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)
 
@@ -97,6 +98,7 @@ add_library(crisky_gyms STATIC
     src/gyms/combat_benchmarks.cpp
     src/gyms/combat_gym.cpp
     src/gyms/transport_gym.cpp
+    src/gyms/ordering_gym.cpp
 )
 target_link_libraries(crisky_gyms PUBLIC crisky_systems)
 target_include_directories(crisky_gyms PUBLIC src/)
@@ -111,6 +113,9 @@ target_link_libraries(gym_combat PRIVATE crisky_gyms)
 add_executable(gym_transport src/gym_transport.cpp)
 target_link_libraries(gym_transport PRIVATE crisky_gyms)
 
+add_executable(gym_ordering src/gym_ordering.cpp)
+target_link_libraries(gym_ordering PRIVATE crisky_gyms)
+
 # --- Infrastructure tests ---
 add_executable(test_data_sink tests/test_data_sink.cpp)
 target_link_libraries(test_data_sink PRIVATE crisky_systems)
@@ -124,3 +129,6 @@ target_link_libraries(test_combat_gym PRIVATE crisky_gyms)
 
 add_executable(test_transport_gym tests/test_transport_gym.cpp)
 target_link_libraries(test_transport_gym PRIVATE crisky_gyms)
+
+add_executable(test_ordering_gym tests/test_ordering_gym.cpp)
+target_link_libraries(test_ordering_gym PRIVATE crisky_gyms)
