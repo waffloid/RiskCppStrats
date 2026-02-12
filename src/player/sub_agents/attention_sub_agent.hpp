@@ -2,7 +2,7 @@
 #define CRISKY_ATTENTION_SUB_AGENT_HPP
 
 #include <vector>
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 
 class Game;
 struct AIMetricsSnapshot;

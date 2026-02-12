@@ -3,7 +3,7 @@
 
 #include "engine/graph.hpp"
 #include "engine/game_state.hpp"
-#include "player/player_interface.hpp"  // TroopCommand
+#include "engine/player_interface.hpp"  // TroopCommand
 
 #include <functional>
 #include <string>

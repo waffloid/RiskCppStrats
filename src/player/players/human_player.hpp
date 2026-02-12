@@ -1,7 +1,7 @@
 #ifndef CRISKY_HUMAN_PLAYER_HPP
 #define CRISKY_HUMAN_PLAYER_HPP
 
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
 #include <raylib.h>

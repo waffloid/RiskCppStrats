@@ -1,7 +1,7 @@
 #ifndef CRISKY_STATIC_DEFENDER_PLAYER_HPP
 #define CRISKY_STATIC_DEFENDER_PLAYER_HPP
 
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 #include "engine/game.hpp"
 
 // Player that never attacks but builds forts on owned nodes when affordable.

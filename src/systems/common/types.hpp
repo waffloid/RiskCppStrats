@@ -4,7 +4,7 @@
 #include <utility>
 #include <vector>
 
-#include "player/player_interface.hpp"  // for BuildCommand
+#include "engine/player_interface.hpp"  // for BuildCommand
 
 // ──────────────────────────────────────────────────────────────
 //  Inter-system I/O contract types.

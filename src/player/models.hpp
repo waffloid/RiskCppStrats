@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 
 using ModelFactory = std::function<std::unique_ptr<PlayerInterface>(int player_id)>;
 

@@ -8,7 +8,7 @@
 #include "game_state.hpp"
 #include "graph.hpp"
 #include "edge_lanes.hpp"
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 
 class Game {
 public:
