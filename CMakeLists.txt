@@ -14,13 +14,13 @@ add_library(crisky_engine STATIC
     src/engine/routing.cpp
     src/engine/game.cpp
     src/engine/benchmark.cpp
-    src/player/attention_ai.cpp
-    src/player/economy_agent.cpp
-    src/player/expansion_agent.cpp
-    src/player/war_utilities.cpp
-    src/player/knapsack_war_agent.cpp
-    src/player/direct_war_agent.cpp
-    src/player/bootstrap_economy_agent.cpp
+    src/player/players/attention_ai_player.cpp
+    src/player/sub_agents/economy_agent.cpp
+    src/player/sub_agents/expansion_agent.cpp
+    src/player/utils/war_utilities.cpp
+    src/player/sub_agents/knapsack_war_agent.cpp
+    src/player/sub_agents/direct_war_agent.cpp
+    src/player/sub_agents/bootstrap_economy_agent.cpp
     src/player/models.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)
@@ -40,7 +40,7 @@ FetchContent_MakeAvailable(raylib)
 # --- Interactive game binary ---
 add_executable(crisky_game
     src/main_game.cpp
-    src/player/human_player.cpp
+    src/player/players/human_player.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )
@@ -53,6 +53,10 @@ add_executable(crisky_screenshots
     src/renderer/camera.cpp
 )
 target_link_libraries(crisky_screenshots PRIVATE crisky_engine raylib)
+
+# --- GA tuning binary ---
+add_executable(ga_tune src/ga_tune.cpp)
+target_link_libraries(ga_tune PRIVATE crisky_engine)
 
 # --- Tests ---
 add_executable(test_graph tests/test_graph.cpp)
@@ -75,3 +79,21 @@ target_link_libraries(test_collision_invariant PRIVATE crisky_engine)
 
 add_executable(test_scenarios tests/test_scenarios.cpp)
 target_link_libraries(test_scenarios PRIVATE crisky_engine)
+
+# --- Systems library (solvers, types, data sink — no RayLib) ---
+# Solver .cpp files are compiled into crisky_engine (Option A) to avoid
+# circular deps with player code.  data_sink + loss_functions live here.
+add_library(crisky_systems STATIC
+    src/systems/common/data_sink.cpp
+)
+target_link_libraries(crisky_systems PUBLIC crisky_engine)
+target_include_directories(crisky_systems PUBLIC src/)
+
+# --- Gyms library (experiment harnesses — no RayLib) ---
+# Placeholder: gym .cpp files added as they're implemented.
+# add_library(crisky_gyms STATIC ...)
+# target_link_libraries(crisky_gyms PUBLIC crisky_systems)
+
+# --- Infrastructure tests ---
+add_executable(test_data_sink tests/test_data_sink.cpp)
+target_link_libraries(test_data_sink PRIVATE crisky_systems)
