@@ -3,10 +3,9 @@
 #include "observability/ai_metrics.hpp"
 #include <unordered_set>
 
-void DirectWarSubAgent::contribute(const Game& game, int player_id,
-                                    const std::vector<float>& /*current_attention*/,
-                                    std::vector<float>& deltas_out,
-                                    PlayerCommands& direct_commands_out) {
+void DirectWarSubAgent::score(const Game& game, int player_id,
+                               std::vector<float>& scores_out,
+                               PlayerCommands& direct_commands_out) {
     auto ctx = build_war_context(game, player_id);
     if (ctx.targets.empty()) return;
 
@@ -14,20 +13,20 @@ void DirectWarSubAgent::contribute(const Game& game, int player_id,
     const auto& nodes_data = game.node_data();
     const auto& edge_lanes = game.edge_lanes();
 
-    // Front-line attention: boost our nodes facing real enemies
+    // Score front-line nodes facing real enemies
     for (const auto& t : ctx.targets) {
         for (int nbr : t.our_neighbors) {
-            deltas_out[nbr] += FRONT_LINE_ATTENTION * t.value;
+            scores_out[nbr] += FRONT_LINE_SCORE * t.value;
         }
     }
 
-    // Solve and emit direct commands
+    // Solve and emit direct attack commands
     auto commands = v2_solve_attacks(game, player_id, ctx.targets, ctx.available);
     for (auto& cmd : commands) {
         direct_commands_out.troops.push_back(cmd);
     }
 
-    // Metrics: v2 efficiency
+    // Metrics
     if (metrics_out) {
         std::unordered_set<int> attacked_nodes;
         float troops_sum = 0.0f;
@@ -45,9 +44,7 @@ void DirectWarSubAgent::contribute(const Game& game, int player_id,
         metrics_out->v2_targets_attacked = static_cast<int>(attacked_nodes.size());
     }
 
-    // Build committed attack set: nodes with new commands OR in-flight troops.
-    // Without the in-flight check, the retreat logic would recall troops on
-    // the tick after v2_solve_attacks decides "enough already in-flight."
+    // Build committed attack set (commands + in-flight)
     std::unordered_set<int> attack_targets;
     for (const auto& cmd : commands) {
         attack_targets.insert(cmd.to_node);
@@ -61,14 +58,14 @@ void DirectWarSubAgent::contribute(const Game& game, int player_id,
             for (const auto& grp : el.lanes[lane_idx].groups) {
                 if (grp.owner == player_id && !grp.retreating) {
                     attack_targets.insert(t.node_idx);
-                    goto next_target;  // found in-flight, done with this target
+                    goto next_target;
                 }
             }
         }
         next_target:;
     }
 
-    // Retreat troops heading toward real enemy nodes we're not committed to
+    // Retreat uncommitted troops heading toward real enemies
     for (int our_node : ctx.our_nodes) {
         for (int nbr : graph.neighbors(our_node)) {
             int nbr_owner = nodes_data[nbr].owner;

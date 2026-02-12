@@ -1,20 +1,21 @@
 #ifndef CRISKY_ECONOMY_AGENT_HPP
 #define CRISKY_ECONOMY_AGENT_HPP
 
-#include "ai/sub_agents/attention_sub_agent.hpp"
+#include "ai/distribution_sub_agent.hpp"
 
-// Economy sub-agent: drives attention toward nodes that need factory/powerplant
-// balance, and emits build commands for structures.
-class EconomySubAgent : public AttentionSubAgent {
+// Economy sub-agent: scores nodes that need factory/powerplant balance,
+// and emits build commands for structures.
+class EconomySubAgent : public DistributionSubAgent {
 public:
-    void contribute(const Game& game, int player_id,
-                    const std::vector<float>& current_attention,
-                    std::vector<float>& deltas_out,
-                    PlayerCommands& direct_commands_out) override;
+    void score(const Game& game, int player_id,
+               std::vector<float>& scores_out,
+               PlayerCommands& direct_commands_out) override;
+
+    float beta() const override { return 1.0f; }
 
 private:
-    static constexpr float FACTORY_POWERPLANT_DELTA_DESIRE = 0.8f;
-    static constexpr float UNBUILT_NODE_ATTENTION = 5.0f;
+    static constexpr float FACTORY_POWERPLANT_SCORE = 0.8f;
+    static constexpr float UNBUILT_NODE_SCORE = 5.0f;
 };
 
 #endif

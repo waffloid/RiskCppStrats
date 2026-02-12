@@ -3,17 +3,17 @@
 
 #include "ai/utils/war_utilities.hpp"
 
-// War sub-agent that uses a per-node budget greedy solver to decide which
-// opposing frontier nodes to attack. Emits TroopCommands directly.
-class KnapsackWarSubAgent : public AttentionSubAgent {
+// War sub-agent using per-node budget greedy solver with knapsack metrics.
+class KnapsackWarSubAgent : public DistributionSubAgent {
 public:
-    void contribute(const Game& game, int player_id,
-                    const std::vector<float>& current_attention,
-                    std::vector<float>& deltas_out,
-                    PlayerCommands& direct_commands_out) override;
+    void score(const Game& game, int player_id,
+               std::vector<float>& scores_out,
+               PlayerCommands& direct_commands_out) override;
+
+    float beta() const override { return 2.0f; }
 
 private:
-    static constexpr float FRONT_LINE_ATTENTION = 5.0f;
+    static constexpr float FRONT_LINE_SCORE = 5.0f;
 };
 
 #endif

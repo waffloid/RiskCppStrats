@@ -3,7 +3,6 @@
 #include "systems/economy/economy_solvers.hpp"
 
 void BootstrapEconomySubAgent::generate_plan(const Game& game, int player_id) {
-    // Delegate plan generation to extracted solver.
     BuildPlan result = economy_solver_bootstrap(
         game.graph(), game.node_data(), player_id, game.config(), NUM_FACTORIES);
 
@@ -12,10 +11,9 @@ void BootstrapEconomySubAgent::generate_plan(const Game& game, int player_id) {
     }
 }
 
-void BootstrapEconomySubAgent::contribute(const Game& game, int player_id,
-                                           const std::vector<float>& current_attention,
-                                           std::vector<float>& deltas_out,
-                                           PlayerCommands& direct_commands_out) {
+void BootstrapEconomySubAgent::score(const Game& game, int player_id,
+                                      std::vector<float>& scores_out,
+                                      PlayerCommands& direct_commands_out) {
     if (!planned_) {
         generate_plan(game, player_id);
         planned_ = true;
@@ -35,17 +33,11 @@ void BootstrapEconomySubAgent::contribute(const Game& game, int player_id,
     }
 
     if (plan_cursor_ < static_cast<int>(plan_.size())) {
-        // Bootstrap phase: focus all attention on the current target,
-        // suppress attention elsewhere to prevent troop scatter
+        // Bootstrap phase: concentrate all score on the current target.
+        // High β (5.0) ensures softmax peaks sharply — no need for negative dampening.
+        bootstrapping_ = true;
         const BuildStep& step = plan_[plan_cursor_];
-        deltas_out[step.node] += BOOTSTRAP_ATTENTION;
-
-        const auto& graph = game.graph();
-        for (int i = 0; i < graph.num_nodes(); i++) {
-            if (i != step.node && nodes_data[i].owner == player_id) {
-                deltas_out[i] -= BOOTSTRAP_DAMPEN;
-            }
-        }
+        scores_out[step.node] = BOOTSTRAP_SCORE;
 
         // Build if we own the node and have enough troops
         if (nodes_data[step.node].owner == player_id) {
@@ -59,6 +51,7 @@ void BootstrapEconomySubAgent::contribute(const Game& game, int player_id,
         }
     } else {
         // Plan complete — delegate to standard economy logic
-        fallback_.contribute(game, player_id, current_attention, deltas_out, direct_commands_out);
+        bootstrapping_ = false;
+        fallback_.score(game, player_id, scores_out, direct_commands_out);
     }
 }

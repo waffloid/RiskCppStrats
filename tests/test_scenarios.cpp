@@ -3,7 +3,7 @@
 
 #include "engine/graph_builder.hpp"
 #include "engine/benchmark.hpp"
-#include "ai/players/attention_ai_player.hpp"
+#include "ai/players/distribution_ai_player.hpp"
 #include "ai/sub_agents/economy_agent.hpp"
 #include "ai/sub_agents/knapsack_war_agent.hpp"
 #include "ai/sub_agents/direct_war_agent.hpp"
@@ -155,7 +155,7 @@ void test_scenario_attention_captures_neutrals() {
     config.init_troop_count = 300;
     config.init_default_troops = 50;  // enables neutral player
 
-    AttentionAIPlayer test_ai(0);
+    DistributionAIPlayer test_ai(0);
     PassivePlayer opponent_ai;  // player 1 is passive
 
     // Player 0 at node 0 (left partition), player 1 at node 3 (right partition)
@@ -179,7 +179,7 @@ void test_scenario_frontier_attack() {
     config.init_troop_count = 200;
     config.init_default_troops = 50;  // neutral troops on unowned nodes
 
-    AttentionAIPlayer test_ai(0);
+    DistributionAIPlayer test_ai(0);
     PassivePlayer opponent;
 
     // Player 0 at node 0 (left), player 1 at node 3 (right).
@@ -206,7 +206,7 @@ void test_scenario_defense_vs_static() {
     GameConfig config = make_scenario_config();
     config.init_troop_count = 500;
 
-    AttentionAIPlayer test_ai(0);
+    DistributionAIPlayer test_ai(0);
     StaticDefenderPlayer defender;
 
     // Player 0 at node 0, player 1 at node 2
@@ -228,14 +228,13 @@ void test_scenario_defense_vs_static() {
 // These test contribute() directly on constructed game states,
 // asserting on the output TroopCommands (v2 per-node budget solver).
 
-// Helper: call DirectWarSubAgent::contribute and return the emitted TroopCommands
+// Helper: call DirectWarSubAgent::score and return the emitted TroopCommands
 static std::vector<TroopCommand> get_direct_war_commands(const Game& game, int player_id) {
     DirectWarSubAgent agent;
     int n = game.graph().num_nodes();
-    std::vector<float> attention(n, 0.0f);
-    std::vector<float> deltas(n, 0.0f);
+    std::vector<float> scores(n, 0.0f);
     PlayerCommands cmds;
-    agent.contribute(game, player_id, attention, deltas, cmds);
+    agent.score(game, player_id, scores, cmds);
     return cmds.troops;
 }
 
@@ -862,10 +861,9 @@ void test_v2_no_retreat_when_overwhelming() {
     // Tick 1: troops are in-flight. Check what the solver decides.
     DirectWarSubAgent agent;
     int n = game.graph().num_nodes();
-    std::vector<float> attention(n, 0.0f);
-    std::vector<float> deltas(n, 0.0f);
+    std::vector<float> scores(n, 0.0f);
     PlayerCommands cmds1;
-    agent.contribute(game, 0, attention, deltas, cmds1);
+    agent.score(game, 0, scores, cmds1);
 
     printf("test_v2_no_retreat_when_overwhelming: tick1 retreats=%zu, troop_cmds=%zu\n",
            cmds1.retreats.size(), cmds1.troops.size());
@@ -892,10 +890,9 @@ void test_v2_sustained_attack_over_ticks() {
     int total_retreats = 0;
 
     for (int tick = 0; tick < 300; tick++) {
-        std::vector<float> attention(n, 0.0f);
-        std::vector<float> deltas(n, 0.0f);
+        std::vector<float> scores(n, 0.0f);
         PlayerCommands cmds;
-        agent.contribute(game, 0, attention, deltas, cmds);
+        agent.score(game, 0, scores, cmds);
         total_retreats += static_cast<int>(cmds.retreats.size());
 
         std::vector<PlayerCommands> all_cmds(game.n_players());

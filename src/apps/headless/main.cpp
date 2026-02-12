@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "engine/game.hpp"
-#include "ai/players/attention_ai_player.hpp"
+#include "ai/players/distribution_ai_player.hpp"
 #include "ai/models.hpp"
 #include "ai/players/passive_player.hpp"
 

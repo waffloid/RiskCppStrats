@@ -14,7 +14,7 @@ add_library(crisky_engine STATIC
     src/engine/routing.cpp
     src/engine/game.cpp
     src/engine/benchmark.cpp
-    src/ai/players/attention_ai_player.cpp
+    src/ai/players/distribution_ai_player.cpp
     src/ai/sub_agents/economy_agent.cpp
     src/ai/sub_agents/expansion_agent.cpp
     src/ai/utils/war_utilities.cpp

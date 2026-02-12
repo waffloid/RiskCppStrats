@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "engine/game.hpp"
-#include "ai/players/attention_ai_player.hpp"
+#include "ai/players/distribution_ai_player.hpp"
 #include "ai/sub_agents/economy_agent.hpp"
 #include "ai/sub_agents/expansion_agent.hpp"
 #include "ai/sub_agents/direct_war_agent.hpp"
@@ -20,7 +20,7 @@ struct Individual {
 };
 
 static std::unique_ptr<PlayerInterface> make_ai(int player_id, const float w[3]) {
-    auto ai = std::make_unique<AttentionAIPlayer>(player_id, AttentionAIPlayer::NoDefaults{});
+    auto ai = std::make_unique<DistributionAIPlayer>(player_id, DistributionAIPlayer::NoDefaults{});
     ai->add_sub_agent(std::make_unique<BootstrapEconomySubAgent>(), w[0]);
     ai->add_sub_agent(std::make_unique<ExpansionSubAgent>(), w[1]);
     ai->add_sub_agent(std::make_unique<DirectWarSubAgent>(), w[2]);

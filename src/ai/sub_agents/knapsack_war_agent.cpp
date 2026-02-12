@@ -3,17 +3,16 @@
 #include "observability/ai_metrics.hpp"
 #include <unordered_set>
 
-void KnapsackWarSubAgent::contribute(const Game& game, int player_id,
-                                      const std::vector<float>& /*current_attention*/,
-                                      std::vector<float>& deltas_out,
-                                      PlayerCommands& direct_commands_out) {
+void KnapsackWarSubAgent::score(const Game& game, int player_id,
+                                 std::vector<float>& scores_out,
+                                 PlayerCommands& direct_commands_out) {
     auto ctx = build_war_context(game, player_id);
     if (ctx.targets.empty()) return;
 
-    // Front-line attention: boost our nodes facing real enemies
+    // Score front-line nodes
     for (const auto& t : ctx.targets) {
         for (int nbr : t.our_neighbors) {
-            deltas_out[nbr] += FRONT_LINE_ATTENTION * t.value;
+            scores_out[nbr] += FRONT_LINE_SCORE * t.value;
         }
     }
 
@@ -23,9 +22,8 @@ void KnapsackWarSubAgent::contribute(const Game& game, int player_id,
         direct_commands_out.troops.push_back(cmd);
     }
 
-    // Metrics: knapsack approximation ratio + v2 efficiency
+    // Metrics: knapsack ratio + v2 efficiency
     if (metrics_out) {
-        // Knapsack ratio: run greedy vs optimal on the frontier
         float budget = 0.0f;
         auto frontier = extract_frontier(game, player_id, budget);
         if (!frontier.empty()) {
@@ -40,7 +38,6 @@ void KnapsackWarSubAgent::contribute(const Game& game, int player_id,
             metrics_out->knapsack_budget = budget;
         }
 
-        // V2 efficiency: value of distinct targets attacked / troops committed
         std::unordered_set<int> attacked_nodes;
         float troops_sum = 0.0f;
         for (const auto& cmd : commands) {
@@ -57,13 +54,12 @@ void KnapsackWarSubAgent::contribute(const Game& game, int player_id,
         metrics_out->v2_targets_attacked = static_cast<int>(attacked_nodes.size());
     }
 
-    // Build attack set from commands only (no in-flight tracking)
+    // Retreat uncommitted troops
     std::unordered_set<int> attack_targets;
     for (const auto& cmd : commands) {
         attack_targets.insert(cmd.to_node);
     }
 
-    // Retreat troops heading toward real enemy nodes we're not attacking
     const auto& graph = game.graph();
     const auto& nodes_data = game.node_data();
     const auto& edge_lanes = game.edge_lanes();

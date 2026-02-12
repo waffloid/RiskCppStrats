@@ -12,7 +12,7 @@
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
-#include "ai/players/attention_ai_player.hpp"
+#include "ai/players/distribution_ai_player.hpp"
 #include "ui/human_player.hpp"
 #include "ai/models.hpp"
 #include "engine/graph_builder.hpp"
@@ -245,7 +245,7 @@ int main(int argc, char* argv[]) {
             ais.push_back((*factory)(i));
             printf("P%d: %s\n", i, model_args[i].c_str());
         } else {
-            ais.push_back(std::make_unique<AttentionAIPlayer>(i));
+            ais.push_back(std::make_unique<DistributionAIPlayer>(i));
             printf("P%d: default (v0_expansion)\n", i);
         }
     }
