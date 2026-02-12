@@ -22,7 +22,7 @@ static void tick_empty(Game& game, int n_ticks, int n_players) {
 
 // Find a neighbor of node_idx that is not a capital (not node 0 or 1)
 static int find_non_capital_neighbor(const Game& game, int node_idx) {
-    for (int nb : game.graph().nodes[node_idx].neighbor_indices) {
+    for (int nb : game.graph().neighbors(node_idx)) {
         if (game.node_data()[nb].state != NodeState::CAPITAL) return nb;
     }
     return -1;

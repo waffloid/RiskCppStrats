@@ -38,6 +38,9 @@ public:
     int num_nodes() const { return static_cast<int>(nodes.size()); }
     int num_edges() const { return static_cast<int>(edges.size()); }
 
+    const std::vector<int>& neighbors(int node_idx) const { return nodes[node_idx].neighbor_indices; }
+    int degree(int node_idx) const { return static_cast<int>(nodes[node_idx].neighbor_indices.size()); }
+
     static uint64_t pack_pair(int a, int b) {
         int lo = (a < b) ? a : b;
         int hi = (a < b) ? b : a;

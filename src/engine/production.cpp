@@ -21,7 +21,7 @@ void produce_troops(std::vector<NodeData>& nodes, const Graph& graph,
         // Powerplant bonus: check if any neighbor is a powerplant owned by same player
         if (nd.state == NodeState::CAPITAL || nd.state == NodeState::FACTORY) {
             const Node& node = graph.nodes[i];
-            for (int nbr_idx : node.neighbor_indices) {
+            for (int nbr_idx : graph.neighbors(i)) {
                 const NodeData& nbr = nodes[nbr_idx];
                 if (nbr.state == NodeState::POWERPLANT && nbr.owner == nd.owner) {
                     base_production += config.powerplant_bonus;

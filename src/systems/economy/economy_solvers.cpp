@@ -20,7 +20,7 @@ BuildPlan economy_solver_greedy(
         if (nd.owner != player_id) continue;
         if (nd.state == NodeState::CAPITAL) continue;
 
-        const auto& nbrs = graph.nodes[node].neighbor_indices;
+        const auto& nbrs = graph.neighbors(node);
 
         // Count adjacent factories/capitals and powerplants owned by us.
         int factory_neighbors = 0;
@@ -83,7 +83,7 @@ BuildPlan economy_solver_bootstrap(
         int cur = q.front();
         q.pop();
         bfs_order.push_back(cur);
-        for (int nbr : graph.nodes[cur].neighbor_indices) {
+        for (int nbr : graph.neighbors(cur)) {
             if (!visited[nbr]) {
                 visited[nbr] = true;
                 q.push(nbr);
@@ -110,7 +110,7 @@ BuildPlan economy_solver_bootstrap(
         if (factory_nodes.count(node)) continue;
 
         bool adj_to_producer = false;
-        for (int nbr : graph.nodes[node].neighbor_indices) {
+        for (int nbr : graph.neighbors(node)) {
             if (factory_nodes.count(nbr) || nbr == capital) {
                 adj_to_producer = true;
                 break;
@@ -121,7 +121,7 @@ BuildPlan economy_solver_bootstrap(
         constexpr float k = 0.3f;
         float producer_count = 0.0f;
         float connectivity = 0.0f;
-        for (int nbr : graph.nodes[node].neighbor_indices) {
+        for (int nbr : graph.neighbors(node)) {
             if (factory_nodes.count(nbr) || nbr == capital) {
                 producer_count += 1.0f;
             }
@@ -192,7 +192,7 @@ float compute_production_rate(
 
         // Check if powered by adjacent powerplant.
         bool powered = false;
-        for (int nbr : graph.nodes[i].neighbor_indices) {
+        for (int nbr : graph.neighbors(i)) {
             if (nodes[nbr].state == NodeState::POWERPLANT && nodes[nbr].owner == player_id) {
                 powered = true;
                 break;

@@ -38,10 +38,10 @@ static void test_grid_topology() {
     assert(bm->graph.num_edges() == 40);
 
     // Corner nodes have degree 2, edge nodes 3, interior nodes 4
-    assert(bm->graph.nodes[0].neighbor_indices.size() == 2);   // top-left
-    assert(bm->graph.nodes[24].neighbor_indices.size() == 2);  // bottom-right
-    assert(bm->graph.nodes[2].neighbor_indices.size() == 3);   // top edge
-    assert(bm->graph.nodes[12].neighbor_indices.size() == 4);  // center
+    assert(bm->graph.degree(0) == 2);   // top-left
+    assert(bm->graph.degree(24) == 2);  // bottom-right
+    assert(bm->graph.degree(2) == 3);   // top edge
+    assert(bm->graph.degree(12) == 4);  // center
 
     std::printf("test_grid_topology: PASS\n");
 }

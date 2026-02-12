@@ -113,7 +113,7 @@ void AttentionAIPlayer::compute_attention_metrics(const Game& game, int player_i
         if (nodes_data[i].owner != player_id) continue;
         owned_count++;
         float self = attention_[i];
-        for (int nbr : graph.nodes[i].neighbor_indices) {
+        for (int nbr : graph.neighbors(i)) {
             if (attention_[nbr] > self) { flowing_count++; break; }
         }
     }
@@ -128,7 +128,7 @@ void AttentionAIPlayer::diffuse_attention(const Game& game) {
 
     scratch_lap_.resize(n);
     for (int i = 0; i < n; i++) {
-        const std::vector<int>& nbrs = graph.nodes[i].neighbor_indices;
+        const std::vector<int>& nbrs = graph.neighbors(i);
         float degree = static_cast<float>(nbrs.size());
         float nbr_sum = 0.0f;
         for (int j : nbrs) {

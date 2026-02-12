@@ -34,7 +34,7 @@ void resolve_combat(NodeData& node_data, int node_idx,
 
     // Artillery at neighboring nodes: multiplies the artillery owner's attack HERE
     const auto& node = graph.nodes[node_idx];
-    for (int nbr_idx : node.neighbor_indices) {
+    for (int nbr_idx : graph.neighbors(node_idx)) {
         const auto& nbr_data = all_nodes[nbr_idx];
         if (nbr_data.state == NodeState::ARTILLERY && nbr_data.owner >= 0) {
             int owner = nbr_data.owner;

@@ -17,7 +17,7 @@ void ExpansionSubAgent::contribute(const Game& game, int player_id,
 
         // Non-owned node (unowned, neutral, or enemy) adjacent to our territory
         bool adjacent_to_us = false;
-        const auto& nbrs = graph.nodes[node].neighbor_indices;
+        const auto& nbrs = graph.neighbors(node);
         for (int nbr : nbrs) {
             if (nodes_data[nbr].owner == player_id) {
                 adjacent_to_us = true;

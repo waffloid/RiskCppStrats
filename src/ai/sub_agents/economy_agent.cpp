@@ -16,7 +16,7 @@ void EconomySubAgent::contribute(const Game& game, int player_id,
         if (nd.owner != player_id) continue;
         if (nd.state == NodeState::CAPITAL) continue;
 
-        const auto& nbrs = graph.nodes[node].neighbor_indices;
+        const auto& nbrs = graph.neighbors(node);
 
         int factory_neighbors = 0;
         int powerplant_neighbors = 0;

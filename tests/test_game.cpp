@@ -67,7 +67,7 @@ void test_build_factory() {
 
     // Find a non-capital neighbor of node 0
     int target = -1;
-    for (int nb : game.graph().nodes[0].neighbor_indices) {
+    for (int nb : game.graph().neighbors(0)) {
         if (game.node_data()[nb].state != NodeState::CAPITAL) {
             target = nb;
             break;
@@ -97,7 +97,7 @@ void test_troop_send_and_arrive() {
 
     Game game(config, {0, 1}, 42);
 
-    const auto& nbrs = game.graph().nodes[0].neighbor_indices;
+    const auto& nbrs = game.graph().neighbors(0);
     if (nbrs.empty()) {
         printf("test_troop_send_and_arrive skipped (no neighbors)\n");
         return;
@@ -142,8 +142,8 @@ void test_deterministic() {
     Game g2(config, {0, 1}, 42);
 
     std::vector<PlayerCommands> cmds(2);
-    if (!g1.graph().nodes[0].neighbor_indices.empty()) {
-        int nbr = g1.graph().nodes[0].neighbor_indices[0];
+    if (!g1.graph().neighbors(0).empty()) {
+        int nbr = g1.graph().neighbors(0)[0];
         cmds[0].troops.push_back({0, nbr, 50});
     }
 

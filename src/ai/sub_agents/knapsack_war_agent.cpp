@@ -68,7 +68,7 @@ void KnapsackWarSubAgent::contribute(const Game& game, int player_id,
     const auto& nodes_data = game.node_data();
     const auto& edge_lanes = game.edge_lanes();
     for (int our_node : ctx.our_nodes) {
-        for (int nbr : graph.nodes[our_node].neighbor_indices) {
+        for (int nbr : graph.neighbors(our_node)) {
             int nbr_owner = nodes_data[nbr].owner;
             if (nbr_owner < 0 || nbr_owner == player_id) continue;
             if (nbr_owner >= game.n_real_players()) continue;

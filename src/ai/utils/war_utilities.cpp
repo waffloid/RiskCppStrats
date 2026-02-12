@@ -32,7 +32,7 @@ float frontier_target_value(const Game& game, int node_idx, int player_id) {
 
     if (nd.state == NodeState::POWERPLANT && nd.owner >= 0 && nd.owner != player_id) {
         int powered_production = 0;
-        for (int nbr : graph.nodes[node_idx].neighbor_indices) {
+        for (int nbr : graph.neighbors(node_idx)) {
             const auto& nbd = nodes_data[nbr];
             if (nbd.owner == nd.owner) {
                 if (nbd.state == NodeState::FACTORY || nbd.state == NodeState::CAPITAL) {
@@ -45,7 +45,7 @@ float frontier_target_value(const Game& game, int node_idx, int player_id) {
 
     if (nd.state == NodeState::FACTORY && nd.owner >= 0 && nd.owner != player_id) {
         value += 1.0f;
-        for (int nbr : graph.nodes[node_idx].neighbor_indices) {
+        for (int nbr : graph.neighbors(node_idx)) {
             const auto& nbd = nodes_data[nbr];
             if (nbd.owner == nd.owner && nbd.state == NodeState::POWERPLANT) {
                 value += 2.0f;
@@ -81,7 +81,7 @@ std::vector<FrontierTarget> extract_frontier(const Game& game, int player_id,
 
     std::unordered_set<int> opposing_frontier;
     for (int node : our_nodes) {
-        for (int nbr : graph.nodes[node].neighbor_indices) {
+        for (int nbr : graph.neighbors(node)) {
             if (our_nodes.find(nbr) == our_nodes.end()) {
                 opposing_frontier.insert(nbr);
             }
@@ -90,7 +90,7 @@ std::vector<FrontierTarget> extract_frontier(const Game& game, int player_id,
 
     std::unordered_set<int> our_frontier;
     for (int target : opposing_frontier) {
-        for (int nbr : graph.nodes[target].neighbor_indices) {
+        for (int nbr : graph.neighbors(target)) {
             if (our_nodes.find(nbr) != our_nodes.end()) {
                 our_frontier.insert(nbr);
             }
@@ -240,8 +240,8 @@ std::vector<TroopCommand> v2_solve_attacks(
         std::vector<int> sorted_neighbors = target.our_neighbors;
         std::sort(sorted_neighbors.begin(), sorted_neighbors.end(),
                   [&graph](int a, int b) {
-                      return graph.nodes[a].neighbor_indices.size()
-                           < graph.nodes[b].neighbor_indices.size();
+                      return graph.degree(a)
+                           < graph.degree(b);
                   });
 
         int remaining_to_send = still_needed;
@@ -280,7 +280,7 @@ WarContext build_war_context(const Game& game, int player_id) {
 
     std::unordered_set<int> opposing_frontier;
     for (int node : ctx.our_nodes) {
-        for (int nbr : graph.nodes[node].neighbor_indices) {
+        for (int nbr : graph.neighbors(node)) {
             if (ctx.our_nodes.find(nbr) == ctx.our_nodes.end()) {
                 opposing_frontier.insert(nbr);
             }
@@ -300,13 +300,13 @@ WarContext build_war_context(const Game& game, int player_id) {
         t.cost = frontier_target_cost(game, target_idx, player_id);
         t.value = frontier_target_value(game, target_idx, player_id);
 
-        for (int nbr : graph.nodes[target_idx].neighbor_indices) {
+        for (int nbr : graph.neighbors(target_idx)) {
             if (ctx.our_nodes.find(nbr) != ctx.our_nodes.end()) {
                 t.our_neighbors.push_back(nbr);
             }
         }
 
-        int degree = static_cast<int>(graph.nodes[target_idx].neighbor_indices.size());
+        int degree = graph.degree(target_idx);
         t.priority = v2_target_priority(t.value, degree, K);
         ctx.targets.push_back(std::move(t));
     }

@@ -48,7 +48,7 @@ std::vector<int> ordering_solver_nearest_first(
     q.push(capital);
     while (!q.empty()) {
         int u = q.front(); q.pop();
-        for (int v : graph.nodes[u].neighbor_indices) {
+        for (int v : graph.neighbors(u)) {
             if (dist[v] == INT_MAX) {
                 dist[v] = dist[u] + 1;
                 q.push(v);

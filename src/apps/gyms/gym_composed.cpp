@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
         if (target_node >= 0) {
             gradient[target_node] = 100.0f;
             // Mild pull to neighbors too
-            for (int nb : game.graph().nodes[target_node].neighbor_indices) {
+            for (int nb : game.graph().neighbors(target_node)) {
                 gradient[nb] = std::max(gradient[nb], 30.0f);
             }
         }

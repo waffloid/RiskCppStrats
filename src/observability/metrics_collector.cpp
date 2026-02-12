@@ -45,7 +45,7 @@ void MetricsCollector::collect(const Game& game, int tick) {
                     s.production_per_tick += config.capital_troops_per_tick;
                     s.theoretical_max_production += config.capital_troops_per_tick + config.powerplant_bonus;
                     // Check if powered by adjacent powerplant
-                    for (int nbr : graph.nodes[i].neighbor_indices) {
+                    for (int nbr : graph.neighbors(i)) {
                         if (nodes[nbr].state == NodeState::POWERPLANT && nodes[nbr].owner == p) {
                             s.production_per_tick += config.powerplant_bonus;
                             break;
@@ -57,7 +57,7 @@ void MetricsCollector::collect(const Game& game, int tick) {
                     s.factories_owned++;
                     s.production_per_tick += config.factory_troops_per_tick;
                     s.theoretical_max_production += config.factory_troops_per_tick + config.powerplant_bonus;
-                    for (int nbr : graph.nodes[i].neighbor_indices) {
+                    for (int nbr : graph.neighbors(i)) {
                         if (nodes[nbr].state == NodeState::POWERPLANT && nodes[nbr].owner == p) {
                             s.production_per_tick += config.powerplant_bonus;
                             s.factories_powered++;
@@ -75,7 +75,7 @@ void MetricsCollector::collect(const Game& game, int tick) {
             }
 
             // Frontier perimeter: count edges to non-owned neighbors
-            for (int nbr : graph.nodes[i].neighbor_indices) {
+            for (int nbr : graph.neighbors(i)) {
                 if (nodes[nbr].owner != p) s.frontier_perimeter++;
             }
         }

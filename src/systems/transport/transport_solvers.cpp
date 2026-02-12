@@ -23,7 +23,7 @@ std::vector<TroopCommand> transport_solver_greedy(
         int troops_here = nd.troops[player_id];
         if (troops_here < min_troops * 2) continue;
 
-        const std::vector<int>& nbrs = graph.nodes[node].neighbor_indices;
+        const std::vector<int>& nbrs = graph.neighbors(node);
         if (nbrs.empty()) continue;
 
         // Positive gradient differences to neighbors

@@ -29,11 +29,11 @@ void test_build_bipartite() {
 
     // Every left node should have exactly 5 neighbors (the right partition)
     for (int i = 0; i < 3; i++) {
-        assert(static_cast<int>(g.nodes[i].neighbor_indices.size()) == 5);
+        assert(g.degree(i) == 5);
     }
     // Every right node should have exactly 3 neighbors (the left partition)
     for (int i = 3; i < 8; i++) {
-        assert(static_cast<int>(g.nodes[i].neighbor_indices.size()) == 3);
+        assert(g.degree(i) == 3);
     }
 
     // Edge lookup should work
@@ -53,9 +53,9 @@ void test_build_path() {
     assert(g.num_edges() == 4);
 
     // Endpoints have degree 1, internal nodes degree 2
-    assert(g.nodes[0].neighbor_indices.size() == 1);
-    assert(g.nodes[4].neighbor_indices.size() == 1);
-    assert(g.nodes[2].neighbor_indices.size() == 2);
+    assert(g.degree(0) == 1);
+    assert(g.degree(4) == 1);
+    assert(g.degree(2) == 2);
 
     printf("test_build_path passed\n");
 }
@@ -66,10 +66,10 @@ void test_build_star() {
     assert(g.num_edges() == 4);
 
     // Center has degree 4
-    assert(static_cast<int>(g.nodes[0].neighbor_indices.size()) == 4);
+    assert(g.degree(0) == 4);
     // Each leaf has degree 1
     for (int i = 1; i <= 4; i++) {
-        assert(g.nodes[i].neighbor_indices.size() == 1);
+        assert(g.degree(i) == 1);
     }
 
     printf("test_build_star passed\n");
@@ -84,7 +84,7 @@ void test_build_graph_general() {
     assert(g.num_nodes() == 3);
     assert(g.num_edges() == 3);
     for (int i = 0; i < 3; i++) {
-        assert(g.nodes[i].neighbor_indices.size() == 2);
+        assert(g.degree(i) == 2);
     }
 
     printf("test_build_graph_general passed\n");

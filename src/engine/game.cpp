@@ -175,7 +175,7 @@ void Game::process_retreats(const std::vector<PlayerCommands>& commands) {
             // across all edges adjacent to this node
             if (cmd.node_idx < 0 || cmd.node_idx >= graph_.num_nodes()) continue;
             const Node& node = graph_.nodes[cmd.node_idx];
-            for (int nbr : node.neighbor_indices) {
+            for (int nbr : graph_.neighbors(cmd.node_idx)) {
                 int eidx = graph_.edge_between(cmd.node_idx, nbr);
                 if (eidx < 0) continue;
                 EdgeLanes& el = edge_lanes_[eidx];
