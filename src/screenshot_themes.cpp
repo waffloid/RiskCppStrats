@@ -9,8 +9,8 @@
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
-#include "player/attention_ai.hpp"
-#include "player/passive_ai.hpp"
+#include "player/players/attention_ai_player.hpp"
+#include "player/players/passive_player.hpp"
 
 static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int bg_tile) {
     Image bg_img = GenImageWhiteNoise(bg_tile, bg_tile, 0.5f);
@@ -55,10 +55,10 @@ int main() {
 
     // Two AttentionAIs + passive for neutral
     std::vector<std::unique_ptr<PlayerInterface>> ais;
-    ais.push_back(std::make_unique<AttentionAI>(0));
-    ais.push_back(std::make_unique<AttentionAI>(1));
+    ais.push_back(std::make_unique<AttentionAIPlayer>(0));
+    ais.push_back(std::make_unique<AttentionAIPlayer>(1));
     for (int i = 2; i < n_total; i++) {
-        ais.push_back(std::make_unique<PassiveAI>());
+        ais.push_back(std::make_unique<PassivePlayer>());
     }
 
     // Simulate

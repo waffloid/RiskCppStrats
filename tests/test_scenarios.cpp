@@ -3,12 +3,12 @@
 
 #include "engine/graph_builder.hpp"
 #include "engine/benchmark.hpp"
-#include "player/attention_ai.hpp"
-#include "player/economy_agent.hpp"
-#include "player/knapsack_war_agent.hpp"
-#include "player/direct_war_agent.hpp"
-#include "player/passive_ai.hpp"
-#include "player/static_defender_ai.hpp"
+#include "player/players/attention_ai_player.hpp"
+#include "player/sub_agents/economy_agent.hpp"
+#include "player/sub_agents/knapsack_war_agent.hpp"
+#include "player/sub_agents/direct_war_agent.hpp"
+#include "player/players/passive_player.hpp"
+#include "player/players/static_defender_player.hpp"
 #include "player/models.hpp"
 
 // --- Helpers ---
@@ -133,8 +133,8 @@ void test_scenario_passive_vs_passive() {
     Graph g = build_bipartite(2, 3);
     GameConfig config = make_scenario_config();
 
-    PassiveAI test_ai;
-    PassiveAI opponent_ai;
+    PassivePlayer test_ai;
+    PassivePlayer opponent_ai;
 
     // Player 0 at node 0, player 1 at node 2
     auto result = run_scenario(config, std::move(g), {0, 2}, {},
@@ -149,14 +149,14 @@ void test_scenario_passive_vs_passive() {
 }
 
 void test_scenario_attention_captures_neutrals() {
-    // AttentionAI on K_{3,5} with neutral troops in M partition.
+    // AttentionAIPlayer on K_{3,5} with neutral troops in M partition.
     Graph g = build_bipartite(3, 5);
     GameConfig config = make_scenario_config();
     config.init_troop_count = 300;
     config.init_default_troops = 50;  // enables neutral player
 
-    AttentionAI test_ai(0);
-    PassiveAI opponent_ai;  // player 1 is passive
+    AttentionAIPlayer test_ai(0);
+    PassivePlayer opponent_ai;  // player 1 is passive
 
     // Player 0 at node 0 (left partition), player 1 at node 3 (right partition)
     // With neutral troops, the neutral player takes all non-capital nodes.
@@ -166,7 +166,7 @@ void test_scenario_attention_captures_neutrals() {
     printf("test_scenario_attention_captures_neutrals: captured %d nodes, %d troops, %d ticks\n",
            result.nodes_captured, result.total_troops, result.ticks_elapsed);
 
-    // AttentionAI should capture at least some nodes
+    // AttentionAIPlayer should capture at least some nodes
     assert(result.nodes_captured >= 1);
 
     printf("test_scenario_attention_captures_neutrals passed\n");
@@ -179,8 +179,8 @@ void test_scenario_frontier_attack() {
     config.init_troop_count = 200;
     config.init_default_troops = 50;  // neutral troops on unowned nodes
 
-    AttentionAI test_ai(0);
-    PassiveAI opponent;
+    AttentionAIPlayer test_ai(0);
+    PassivePlayer opponent;
 
     // Player 0 at node 0 (left), player 1 at node 3 (right).
     // Override: give player 0 ownership of left partition nodes 1 and 2.
@@ -201,13 +201,13 @@ void test_scenario_frontier_attack() {
 }
 
 void test_scenario_defense_vs_static() {
-    // K_{2,3}: AI in left, StaticDefenderAI in right (builds forts).
+    // K_{2,3}: AI in left, StaticDefenderPlayer in right (builds forts).
     Graph g = build_bipartite(2, 3);
     GameConfig config = make_scenario_config();
     config.init_troop_count = 500;
 
-    AttentionAI test_ai(0);
-    StaticDefenderAI defender;
+    AttentionAIPlayer test_ai(0);
+    StaticDefenderPlayer defender;
 
     // Player 0 at node 0, player 1 at node 2
     // Override: give player 1 ownership of nodes 3 and 4
@@ -634,7 +634,7 @@ void test_knapsack_frontier_attack_bipartite() {
     auto factory = get_model("v1_knapsack");
     assert(factory != nullptr);
     auto ai = (*factory)(0);
-    PassiveAI opponent;
+    PassivePlayer opponent;
 
     std::vector<NodeOverride> overrides;
     overrides.push_back({1, NodeState::DEFAULT, 0, 150});
@@ -678,7 +678,7 @@ void test_knapsack_buildup_then_attack() {
     auto factory = get_model("v1_knapsack_hybrid");
     assert(factory != nullptr);
     auto ai = (*factory)(0);
-    PassiveAI opponent;
+    PassivePlayer opponent;
 
     // Player 0 at node 0, player 1 at node 4
     std::vector<NodeOverride> overrides;
@@ -813,7 +813,7 @@ void test_v2_bipartite_simulation() {
     auto factory = get_model("v2_knapsack");
     assert(factory != nullptr);
     auto ai = (*factory)(0);
-    PassiveAI opponent;
+    PassivePlayer opponent;
 
     std::vector<NodeOverride> overrides;
     overrides.push_back({1, NodeState::DEFAULT, 0, 200});

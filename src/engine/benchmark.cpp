@@ -1,5 +1,5 @@
 #include "engine/benchmark.hpp"
-#include "player/passive_ai.hpp"
+#include "player/players/passive_player.hpp"
 
 ScenarioResult run_scenario(
     const GameConfig& config,
@@ -20,7 +20,7 @@ ScenarioResult run_scenario(
     }
 
     int n_total = game.n_players();
-    PassiveAI passive;
+    PassivePlayer passive;
 
     std::vector<PlayerCommands> commands(n_total);
     int tick = 0;

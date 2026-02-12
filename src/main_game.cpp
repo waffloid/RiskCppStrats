@@ -12,12 +12,12 @@
 #include "renderer/renderer.hpp"
 #include "renderer/camera.hpp"
 #include "renderer/color_scheme.hpp"
-#include "player/attention_ai.hpp"
-#include "player/human_player.hpp"
+#include "player/players/attention_ai_player.hpp"
+#include "player/players/human_player.hpp"
 #include "player/models.hpp"
 #include "engine/graph_builder.hpp"
 
-#include "player/passive_ai.hpp"
+#include "player/players/passive_player.hpp"
 
 static bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;
@@ -245,12 +245,12 @@ int main(int argc, char* argv[]) {
             ais.push_back((*factory)(i));
             printf("P%d: %s\n", i, model_args[i].c_str());
         } else {
-            ais.push_back(std::make_unique<AttentionAI>(i));
+            ais.push_back(std::make_unique<AttentionAIPlayer>(i));
             printf("P%d: default (v0_expansion)\n", i);
         }
     }
     for (int i = n_real; i < n_total; i++) {
-        ais.push_back(std::make_unique<PassiveAI>());
+        ais.push_back(std::make_unique<PassivePlayer>());
     }
 
     // RayLib init

@@ -221,8 +221,23 @@ void Game::process_arrivals(std::vector<Arrival>& arrivals) {
 }
 
 void Game::resolve_all_combat(float dt) {
+    // Snapshot troop totals before combat
+    tick_deaths_.assign(n_players_, 0);
+    std::vector<int> before(n_players_, 0);
+    for (const auto& nd : node_data_) {
+        for (int p = 0; p < n_players_; p++) before[p] += nd.troops[p];
+    }
+
     for (int i = 0; i < graph_.num_nodes(); i++) {
         resolve_combat(node_data_[i], i, graph_, node_data_, n_players_, config_, dt);
+    }
+
+    // Compute deaths as troop decrease from combat
+    for (const auto& nd : node_data_) {
+        for (int p = 0; p < n_players_; p++) before[p] -= nd.troops[p];
+    }
+    for (int p = 0; p < n_players_; p++) {
+        tick_deaths_[p] = std::max(0, before[p]);
     }
 }
 

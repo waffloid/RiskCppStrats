@@ -35,6 +35,7 @@ public:
     int n_players() const { return n_players_; }
     int n_real_players() const { return n_real_players_; }
     float time() const { return time_; }
+    const std::vector<int>& tick_deaths() const { return tick_deaths_; }
 
     bool is_game_over() const;
 
@@ -48,6 +49,7 @@ private:
     float accumulated_production_time_ = 0.0f;  // for tick-based production (invariant across speeds)
     int n_players_;
     int n_real_players_;  // excludes neutral player
+    std::vector<int> tick_deaths_;  // per-player deaths from last tick
 
     void process_build_commands(const std::vector<PlayerCommands>& commands);
     void process_troop_sends(const std::vector<PlayerCommands>& commands);
