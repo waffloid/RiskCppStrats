@@ -29,7 +29,7 @@ add_library(crisky_engine STATIC
 target_include_directories(crisky_engine PUBLIC src/)
 
 # --- Headless binary ---
-add_executable(crisky_headless src/main_headless.cpp)
+add_executable(crisky_headless src/apps/headless/main.cpp)
 target_link_libraries(crisky_headless PRIVATE crisky_engine)
 
 # --- RayLib (FetchContent) ---
@@ -42,7 +42,7 @@ FetchContent_MakeAvailable(raylib)
 
 # --- Interactive game binary ---
 add_executable(crisky_game
-    src/main_game.cpp
+    src/apps/game/main.cpp
     src/ui/human_player.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
@@ -51,14 +51,14 @@ target_link_libraries(crisky_game PRIVATE crisky_engine raylib)
 
 # --- Screenshot tool ---
 add_executable(crisky_screenshots
-    src/screenshot_themes.cpp
+    src/apps/screenshots/main.cpp
     src/renderer/renderer.cpp
     src/renderer/camera.cpp
 )
 target_link_libraries(crisky_screenshots PRIVATE crisky_engine raylib)
 
 # --- GA tuning binary ---
-add_executable(ga_tune src/ga_tune.cpp)
+add_executable(ga_tune src/apps/ga_tune/main.cpp)
 target_link_libraries(ga_tune PRIVATE crisky_engine)
 
 # --- Tests ---
@@ -105,19 +105,19 @@ target_link_libraries(crisky_gyms PUBLIC crisky_systems)
 target_include_directories(crisky_gyms PUBLIC src/)
 
 # --- Gym headless binaries ---
-add_executable(gym_economy src/gym_economy.cpp)
+add_executable(gym_economy src/apps/gyms/gym_economy.cpp)
 target_link_libraries(gym_economy PRIVATE crisky_gyms)
 
-add_executable(gym_combat src/gym_combat.cpp)
+add_executable(gym_combat src/apps/gyms/gym_combat.cpp)
 target_link_libraries(gym_combat PRIVATE crisky_gyms)
 
-add_executable(gym_transport src/gym_transport.cpp)
+add_executable(gym_transport src/apps/gyms/gym_transport.cpp)
 target_link_libraries(gym_transport PRIVATE crisky_gyms)
 
-add_executable(gym_ordering src/gym_ordering.cpp)
+add_executable(gym_ordering src/apps/gyms/gym_ordering.cpp)
 target_link_libraries(gym_ordering PRIVATE crisky_gyms)
 
-add_executable(gym_composed src/gym_composed.cpp)
+add_executable(gym_composed src/apps/gyms/gym_composed.cpp)
 target_link_libraries(gym_composed PRIVATE crisky_gyms)
 
 # --- Infrastructure tests ---
