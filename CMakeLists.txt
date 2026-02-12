@@ -99,6 +99,7 @@ add_library(crisky_gyms STATIC
     src/gyms/combat_gym.cpp
     src/gyms/transport_gym.cpp
     src/gyms/ordering_gym.cpp
+    src/gyms/projections.cpp
 )
 target_link_libraries(crisky_gyms PUBLIC crisky_systems)
 target_include_directories(crisky_gyms PUBLIC src/)
