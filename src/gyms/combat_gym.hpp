@@ -3,9 +3,12 @@
 
 #include "gyms/combat_benchmarks.hpp"
 #include "gyms/combat_tick_record.hpp"
+#include "engine/player_interface.hpp"
 
 #include <string>
 #include <vector>
+
+class Game;
 
 struct CombatGymResult {
     std::string benchmark;
@@ -29,6 +32,21 @@ struct CombatGymResult {
     // Per-tick data (populated when collect_ticks=true)
     std::vector<CombatTickRecord> tick_records;
 };
+
+// Per-tick metrics from a combat simulation step — shared between headless and viz.
+struct CombatTickMetrics {
+    std::vector<int> troops;        // total per real player (on-node + in-transit)
+    std::vector<float> territory;   // fractional node ownership per real player
+    std::vector<int> deaths;        // deaths this tick per real player
+};
+
+// Advance one tick of combat simulation. Calls decide for each player,
+// clears builds (pure combat), runs game.tick, and extracts per-player metrics.
+// players vector must be indexed by player id, size >= n_total.
+CombatTickMetrics combat_gym_tick(
+    Game& game,
+    const std::vector<PlayerInterface*>& players,
+    float dt = 1.0f);
 
 // Run a single combat gym match.
 // benchmark:  map layout, initial state, tick limit

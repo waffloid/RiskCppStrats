@@ -27,4 +27,15 @@ std::vector<float> potential_deficit(
     const TroopDistribution& target,
     int total_troops);
 
+// Solve the graph Poisson equation L*phi = deficit using Gauss-Seidel
+// with successive over-relaxation. Solves in-place: phi is both the initial
+// guess and the output. Pass a warm phi from the previous tick for inertia,
+// or resize to num_nodes and zero-fill for a cold start.
+void solve_graph_poisson(
+    const Graph& graph,
+    const std::vector<float>& deficit,
+    std::vector<float>& phi,
+    int max_iters = 1000,
+    float omega = 1.5f);
+
 #endif

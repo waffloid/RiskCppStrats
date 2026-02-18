@@ -2,6 +2,7 @@
 #define CRISKY_VIZ_NODE_HEATMAP_HPP
 
 #include "viz/panel.hpp"
+#include "viz/panels/graph_heatmap.hpp"  // HeatmapNorm enum
 #include "engine/graph.hpp"
 
 #include <functional>
@@ -24,6 +25,7 @@ public:
     bool auto_range = true;
     float radius = 12.0f;
     float alpha = 0.6f;
+    HeatmapNorm norm = HeatmapNorm::Log;  // default Log for overlays
 
 private:
     std::string title_;

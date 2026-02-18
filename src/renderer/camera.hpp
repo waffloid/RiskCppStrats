@@ -12,7 +12,9 @@ public:
     void fit_to_graph(const Graph& graph, int screen_w, int screen_h, float padding = 40.0f);
 
     // Process input: scroll wheel zoom (toward mouse), middle-click drag pan
-    void update();
+    // skip_mouse: suppress scroll wheel + middle-click drag (e.g. ImGui wants mouse)
+    // skip_keyboard: suppress WASD/IO/KL (e.g. ImGui wants keyboard)
+    void update(bool skip_mouse = false, bool skip_keyboard = false);
 
     // Coordinate transforms
     Vector2 world_to_screen(Vector2 world) const;

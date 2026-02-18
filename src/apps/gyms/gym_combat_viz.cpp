@@ -1,12 +1,11 @@
+#include "gyms/combat_gym.hpp"
 #include "gyms/combat_benchmarks.hpp"
 #include "systems/combat/combat_solvers.hpp"
 #include "ai/players/passive_player.hpp"
 #include "ai/players/distribution_ai_player.hpp"
 #include "engine/game.hpp"
 
-#include "renderer/renderer.hpp"
-#include "renderer/camera.hpp"
-
+#include "viz/viz_app.hpp"
 #include "viz/panel_host.hpp"
 #include "viz/ring_buffer.hpp"
 #include "viz/panels/time_series_chart.hpp"
@@ -14,11 +13,11 @@
 #include "viz/panels/graph_heatmap.hpp"
 #include "viz/panels/stats_table.hpp"
 #include "viz/panels/playback_controls.hpp"
+#include "viz/panels/tabbed_panel.hpp"
+
+#include "viz/imgui_theme.hpp"
 
 #include "raylib.h"
-#include "imgui.h"
-#include "implot.h"
-#include "rlImGui.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -28,7 +27,7 @@
 
 static void print_usage() {
     std::printf("Usage: gym_combat_viz [options]\n");
-    std::printf("  --solver=NAME      AI model for player 0 (default: v3_bootstrap)\n");
+    std::printf("  --solver=NAME      AI model for player 0 (default: v3)\n");
     std::printf("  --opponent=NAME    AI model for player 1 (default: v2_knapsack)\n");
     std::printf("  --benchmark=NAME   Benchmark map (default: corridor)\n");
     std::printf("  --spartan=X        Troop multiplier for opponent (default: 1.0)\n");
@@ -44,7 +43,7 @@ static void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
-    std::string solver_name = "v3_bootstrap";
+    std::string solver_name = "v3";
     std::string opponent_name = "v2_knapsack";
     std::string benchmark_name = "corridor";
     float spartan = 1.0f;
@@ -79,7 +78,6 @@ int main(int argc, char* argv[]) {
     auto solver_ai = (*solver_factory)(0);
     auto opponent_ai = (*opponent_factory)(1);
 
-    // Enable metrics on solver if it's a DistributionAIPlayer
     auto* dist_player = dynamic_cast<DistributionAIPlayer*>(solver_ai.get());
     if (dist_player) dist_player->set_metrics_enabled(true);
 
@@ -98,21 +96,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // --- Window setup ---
-    int screen_w = 1600, screen_h = 900;
-    InitWindow(screen_w, screen_h, "CRisky Combat Gym Viz");
-    SetTargetFPS(60);
+    // --- VizApp ---
+    VizApp app("CRisky Combat Gym Viz", 1600, 900);
+    app.init_camera(game.graph());
 
-    rlImGuiSetup(true);
-    ImPlot::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-
-    Renderer renderer(screen_w, screen_h);
-    Camera2D_Custom camera;
-    camera.fit_to_graph(game.graph(), screen_w, screen_h);
-
-    // --- Ring buffers (per-tick data) ---
+    // --- Ring buffers ---
     RingBuffer<float> p0_troops(4096), p1_troops(4096);
     RingBuffer<float> p0_nodes(4096), p1_nodes(4096);
     RingBuffer<float> p0_kd(4096), p1_kd(4096);
@@ -121,42 +109,51 @@ int main(int argc, char* argv[]) {
     // --- Compose panels ---
     PanelHost host;
 
-    // Troops over time
-    auto troops_chart = std::make_unique<TimeSeriesChart>("Troops", "Tick", "Count");
-    troops_chart->add_series("P0 Troops", IM_COL32(100, 149, 237, 255), &p0_troops);
-    troops_chart->add_series("P1 Troops", IM_COL32(255, 99, 71, 255), &p1_troops);
-    host.add(std::move(troops_chart));
+    // Keep raw pointers for per-frame color sync with theme
+    std::vector<TimeSeriesChart*> player_charts;
 
-    // Territory over time
-    auto territory_chart = std::make_unique<TimeSeriesChart>("Territory", "Tick", "Nodes");
-    territory_chart->add_series("P0 Nodes", IM_COL32(100, 149, 237, 255), &p0_nodes);
-    territory_chart->add_series("P1 Nodes", IM_COL32(255, 99, 71, 255), &p1_nodes);
-    host.add(std::move(territory_chart));
+    auto charts_tab = std::make_unique<TabbedPanel>("Charts");
+    {
+        const auto& scheme = COLOR_SCHEMES[app.scheme_idx()];
+        unsigned int c0 = color_to_im(scheme.player_colors[0]);
+        unsigned int c1 = color_to_im(scheme.player_colors[1]);
 
-    // K/D ratio over time
-    auto kd_chart = std::make_unique<TimeSeriesChart>("K/D Ratio", "Tick", "Ratio");
-    kd_chart->add_series("P0 K/D", IM_COL32(100, 149, 237, 255), &p0_kd);
-    kd_chart->add_series("P1 K/D", IM_COL32(255, 99, 71, 255), &p1_kd);
-    host.add(std::move(kd_chart));
+        auto troops_chart = std::make_unique<TimeSeriesChart>("Troops", "Tick", "Count");
+        troops_chart->add_series("P0 Troops", c0, &p0_troops);
+        troops_chart->add_series("P1 Troops", c1, &p1_troops);
+        player_charts.push_back(troops_chart.get());
+        charts_tab->add_tab(std::move(troops_chart));
 
-    // Cumulative kills
-    auto kills_chart = std::make_unique<TimeSeriesChart>("Cumulative Kills", "Tick", "Kills");
-    kills_chart->add_series("P0 Kills", IM_COL32(100, 149, 237, 255), &p0_kills);
-    kills_chart->add_series("P1 Kills", IM_COL32(255, 99, 71, 255), &p1_kills);
-    host.add(std::move(kills_chart));
+        auto territory_chart = std::make_unique<TimeSeriesChart>("Territory", "Tick", "Nodes");
+        territory_chart->add_series("P0 Nodes", c0, &p0_nodes);
+        territory_chart->add_series("P1 Nodes", c1, &p1_nodes);
+        player_charts.push_back(territory_chart.get());
+        charts_tab->add_tab(std::move(territory_chart));
 
-    // Distribution heatmap (only if solver is DistributionAIPlayer)
+        auto kd_chart = std::make_unique<TimeSeriesChart>("K/D Ratio", "Tick", "Ratio");
+        kd_chart->add_series("P0 K/D", c0, &p0_kd);
+        kd_chart->add_series("P1 K/D", c1, &p1_kd);
+        player_charts.push_back(kd_chart.get());
+        charts_tab->add_tab(std::move(kd_chart));
+
+        auto kills_chart = std::make_unique<TimeSeriesChart>("Cumulative Kills", "Tick", "Kills");
+        kills_chart->add_series("P0 Kills", c0, &p0_kills);
+        kills_chart->add_series("P1 Kills", c1, &p1_kills);
+        player_charts.push_back(kills_chart.get());
+        charts_tab->add_tab(std::move(kills_chart));
+    }
+    host.add(std::move(charts_tab));
+
     if (dist_player) {
         host.add(std::make_unique<GraphHeatmap>(
-            "Distribution", &game.graph(),
+            "P0 Distribution", &game.graph(),
             [&]() -> std::vector<float> {
                 const auto& snap = dist_player->decision_snapshot();
                 return snap.smoothed;
             }
         ));
-
         host.add(std::make_unique<GraphHeatmap>(
-            "Gradient", &game.graph(),
+            "P0 Potential", &game.graph(),
             [&]() -> std::vector<float> {
                 const auto& snap = dist_player->decision_snapshot();
                 return snap.gradient;
@@ -164,7 +161,6 @@ int main(int argc, char* argv[]) {
         ));
     }
 
-    // Stats table
     int cum_kills_p0 = 0, cum_kills_p1 = 0;
     int cum_deaths_p0 = 0, cum_deaths_p1 = 0;
     int tick_count = 0;
@@ -183,134 +179,75 @@ int main(int argc, char* argv[]) {
         return rows;
     }));
 
-    // Playback controls
-    float speed = 1.0f;
-    bool paused = false;
-    host.add(std::make_unique<PlaybackControls>(&speed, &paused, &tick_count));
+    host.add(std::make_unique<PlaybackControls>(&app.speed(), &app.paused(), &tick_count));
 
     // --- Game loop ---
+    PassivePlayer passive;
     int n_total = game.n_players();
     int n_real = game.n_real_players();
-    std::vector<PlayerCommands> commands(n_total);
-    PassivePlayer passive;
-    bool game_over = false;
+    std::vector<PlayerInterface*> players(n_total, &passive);
+    players[0] = solver_ai.get();
+    if (n_real > 1) players[1] = opponent_ai.get();
 
-    float tick_accumulator = 0.0f;
-
-    while (!WindowShouldClose()) {
+    while (!app.should_close()) {
         // --- Simulation ---
-        if (!paused && !game_over) {
-            tick_accumulator += speed;
-            while (tick_accumulator >= 1.0f) {
-                tick_accumulator -= 1.0f;
+        float tick_dt;
+        while ((tick_dt = app.consume_tick()) > 0) {
+            auto metrics = combat_gym_tick(game, players, tick_dt);
+            tick_count++;
 
-                for (auto& c : commands) c = PlayerCommands{};
+            // Update cumulative stats
+            int d0 = (0 < static_cast<int>(metrics.deaths.size())) ? metrics.deaths[0] : 0;
+            int d1 = (1 < static_cast<int>(metrics.deaths.size())) ? metrics.deaths[1] : 0;
+            cum_deaths_p0 += d0;
+            cum_deaths_p1 += d1;
+            cum_kills_p0 += d1;
+            cum_kills_p1 += d0;
 
-                for (int p = 0; p < n_total; p++) {
-                    if (!game.is_alive(p)) continue;
-                    if (p == 0)
-                        solver_ai->decide(game, p, commands[p]);
-                    else if (p < n_real)
-                        opponent_ai->decide(game, p, commands[p]);
-                    else
-                        passive.decide(game, p, commands[p]);
-                }
+            int troops_0 = (0 < static_cast<int>(metrics.troops.size())) ? metrics.troops[0] : 0;
+            int troops_1 = (1 < static_cast<int>(metrics.troops.size())) ? metrics.troops[1] : 0;
+            float territory_0 = (0 < static_cast<int>(metrics.territory.size())) ? metrics.territory[0] : 0.0f;
+            float territory_1 = (1 < static_cast<int>(metrics.territory.size())) ? metrics.territory[1] : 0.0f;
 
-                // Pure combat — no building
-                for (auto& c : commands) c.builds.clear();
+            p0_troops.push(static_cast<float>(troops_0));
+            p1_troops.push(static_cast<float>(troops_1));
+            p0_nodes.push(territory_0);
+            p1_nodes.push(territory_1);
+            p0_kd.push(cum_deaths_p0 > 0 ? static_cast<float>(cum_kills_p0) / cum_deaths_p0 : 0.0f);
+            p1_kd.push(cum_deaths_p1 > 0 ? static_cast<float>(cum_kills_p1) / cum_deaths_p1 : 0.0f);
+            p0_kills.push(static_cast<float>(cum_kills_p0));
+            p1_kills.push(static_cast<float>(cum_kills_p1));
+        }
 
-                game.tick(1.0f, commands);
-                tick_count++;
+        // --- Rendering ---
+        app.begin_frame();
+        app.draw_game(game);
 
-                // Update cumulative stats
-                const auto& deaths = game.tick_deaths();
-                int d0 = (0 < static_cast<int>(deaths.size())) ? deaths[0] : 0;
-                int d1 = (1 < static_cast<int>(deaths.size())) ? deaths[1] : 0;
-                cum_deaths_p0 += d0;
-                cum_deaths_p1 += d1;
-                cum_kills_p0 += d1;  // p0's kills = p1's deaths
-                cum_kills_p1 += d0;
+        if (game.is_game_over()) {
+            DrawText("GAME OVER", app.screen_w() / 2 - 80, 10, 24, RED);
+        }
+        const auto& scheme = COLOR_SCHEMES[app.scheme_idx()];
+        Color status_color = scheme.sys_color();
+        status_color.a = 200;
+        DrawText(TextFormat("Tick: %d  Speed: %.0fx", tick_count, app.speed()),
+                 10, app.screen_h() - 30, 16, status_color);
 
-                // Count troops and territory
-                int troops_0 = 0, troops_1 = 0, nodes_0 = 0, nodes_1 = 0;
-                for (int i = 0; i < game.graph().num_nodes(); i++) {
-                    const auto& nd = game.node_data()[i];
-                    if (nd.owner == 0) nodes_0++;
-                    if (nd.owner == 1) nodes_1++;
-                    if (0 < static_cast<int>(nd.troops.size())) troops_0 += nd.troops[0];
-                    if (1 < static_cast<int>(nd.troops.size())) troops_1 += nd.troops[1];
-                }
-                // Add in-transit troops
-                for (const auto& el : game.edge_lanes()) {
-                    for (int lane = 0; lane < 2; lane++) {
-                        for (const auto& g : el.lanes[lane].groups) {
-                            if (g.owner == 0) troops_0 += g.count;
-                            if (g.owner == 1) troops_1 += g.count;
-                        }
-                    }
-                }
-
-                // Push to ring buffers
-                p0_troops.push(static_cast<float>(troops_0));
-                p1_troops.push(static_cast<float>(troops_1));
-                p0_nodes.push(static_cast<float>(nodes_0));
-                p1_nodes.push(static_cast<float>(nodes_1));
-                p0_kd.push(cum_deaths_p0 > 0 ? static_cast<float>(cum_kills_p0) / cum_deaths_p0 : 0.0f);
-                p1_kd.push(cum_deaths_p1 > 0 ? static_cast<float>(cum_kills_p1) / cum_deaths_p1 : 0.0f);
-                p0_kills.push(static_cast<float>(cum_kills_p0));
-                p1_kills.push(static_cast<float>(cum_kills_p1));
-
-                if (game.is_game_over()) {
-                    game_over = true;
-                    break;
-                }
-
-                if (tick_count >= bm->max_ticks) {
-                    game_over = true;
-                    break;
-                }
+        // Sync chart colors with current theme
+        {
+            unsigned int c0 = color_to_im(scheme.player_colors[0]);
+            unsigned int c1 = color_to_im(scheme.player_colors[1]);
+            for (auto* chart : player_charts) {
+                chart->set_series_color(0, c0);
+                chart->set_series_color(1, c1);
             }
         }
 
-        // Re-pause after a single step
-        if (paused) tick_accumulator = 0.0f;
-
-        camera.update();
-
-        // --- Rendering ---
-        BeginDrawing();
-        ClearBackground(BLACK);
-
-        // Game world
-        BeginMode2D(Camera2D{
-            .offset = camera.offset(),
-            .target = {0, 0},
-            .rotation = camera.rotation(),
-            .zoom = camera.zoom()
-        });
-        renderer.draw(game, camera);
-        EndMode2D();
-
-        // Status bar
-        if (game_over) {
-            DrawText("GAME OVER", screen_w / 2 - 80, 10, 24, RED);
-        }
-        DrawText(TextFormat("Tick: %d  Speed: %.0fx", tick_count, speed),
-                 10, screen_h - 30, 16, LIGHTGRAY);
-
-        // ImGui frame
-        rlImGuiBegin();
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
-                                     ImGuiDockNodeFlags_PassthruCentralNode);
+        app.begin_imgui();
         host.draw();
-        rlImGuiEnd();
+        app.end_imgui();
 
-        EndDrawing();
+        app.end_frame();
     }
-
-    ImPlot::DestroyContext();
-    rlImGuiShutdown();
-    CloseWindow();
 
     // Print final results
     int nodes_0 = 0, nodes_1 = 0;

@@ -8,6 +8,7 @@
 #include "ai/distribution.hpp"
 #include "ai/model_config.hpp"
 #include "systems/transport/potential_solvers.hpp"
+#include "systems/transport/transport_solvers.hpp"
 #include "observability/ai_metrics.hpp"
 
 struct DistributionSubAgentSlot {
@@ -32,7 +33,7 @@ public:
     void decide(const Game& game, int player_id, PlayerCommands& out) override;
 
     // Read-only access to the distribution field (for visualization/debugging).
-    const TroopDistribution& distribution() const { return prev_distribution_; }
+    const TroopDistribution& distribution() const { return cur_distribution_; }
 
     // Read-only access to sub-agents (for visualization).
     const std::vector<DistributionSubAgentSlot>& sub_agents() const { return sub_agents_; }
@@ -56,17 +57,16 @@ private:
 
     std::vector<DistributionSubAgentSlot> sub_agents_;
 
-    // Persistent distribution (smoothed via EMA across ticks)
-    TroopDistribution prev_distribution_;
-
-    void execute_transport(const Game& game, PlayerCommands& out,
-                           const std::vector<float>& potential,
-                           const std::vector<bool>& masked);
+    // Current distribution (softmax output, no smoothing)
+    TroopDistribution cur_distribution_;
 
     // Observability
     AIMetricsSnapshot metrics_;
     AIDecisionSnapshot decision_snapshot_;
     bool metrics_enabled_ = false;
+
+    // Warm-start phi for Poisson solve (reused across ticks)
+    std::vector<float> warm_phi_;
 
     // Scratch buffers (reused across ticks)
     std::vector<float> scratch_scores_;

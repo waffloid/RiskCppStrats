@@ -14,6 +14,9 @@ void NodeHeatmapOverlay::draw() {
     int n = graph_->num_nodes();
     if (static_cast<int>(values.size()) != n) return;
 
+    // Apply normalization (reuse GraphHeatmap's static method)
+    GraphHeatmap::apply_norm(values, norm);
+
     // Auto-range
     if (auto_range && n > 0) {
         vmin = *std::min_element(values.begin(), values.end());
@@ -21,30 +24,23 @@ void NodeHeatmapOverlay::draw() {
         if (vmax - vmin < 1e-6f) { vmin -= 0.5f; vmax += 0.5f; }
     }
 
-    for (int i = 0; i < n; i++) {
-        float t = (vmax - vmin > 1e-6f) ? (values[i] - vmin) / (vmax - vmin) : 0.5f;
+    float inv_range = (vmax - vmin > 1e-6f) ? 1.0f / (vmax - vmin) : 0.0f;
+    unsigned char a = static_cast<unsigned char>(alpha * 255);
+
+    auto ramp_color = [&](float t) -> Color {
         t = std::clamp(t, 0.0f, 1.0f);
+        auto v = static_cast<unsigned char>(t * 255);
+        return Color{v, v, v, a};
+    };
 
-        // Blue -> Green -> Red ramp
-        unsigned char r, g, b;
-        if (t < 0.5f) {
-            float s = t * 2.0f;
-            r = 0;
-            g = static_cast<unsigned char>(s * 255);
-            b = static_cast<unsigned char>((1.0f - s) * 255);
-        } else {
-            float s = (t - 0.5f) * 2.0f;
-            r = static_cast<unsigned char>(s * 255);
-            g = static_cast<unsigned char>((1.0f - s) * 255);
-            b = 0;
-        }
-        unsigned char a = static_cast<unsigned char>(alpha * 255);
-
+    // Draw nodes
+    for (int i = 0; i < n; i++) {
+        float t = std::clamp((values[i] - vmin) * inv_range, 0.0f, 1.0f);
         DrawCircle(
             static_cast<int>(graph_->nodes[i].x),
             static_cast<int>(graph_->nodes[i].y),
             radius,
-            Color{r, g, b, a}
+            ramp_color(t)
         );
     }
 }

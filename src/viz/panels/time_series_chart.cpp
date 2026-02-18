@@ -9,18 +9,28 @@ void TimeSeriesChart::add_series(std::string label, unsigned int color, RingBuff
     series_.push_back({std::move(label), color, buf});
 }
 
+void TimeSeriesChart::set_series_color(int index, unsigned int color) {
+    if (index >= 0 && index < static_cast<int>(series_.size()))
+        series_[index].color = color;
+}
+
 void TimeSeriesChart::draw() {
-    if (ImPlot::BeginPlot(("##" + title_).c_str(), ImVec2(-1, height_))) {
-        ImPlot::SetupAxes(x_label_.c_str(), y_label_.c_str());
+    ImGui::Checkbox("Follow", &follow_);
+    float h = ImGui::GetContentRegionAvail().y;
+    if (h < 50.0f) h = height_;
+    if (ImPlot::BeginPlot(("##" + title_).c_str(), ImVec2(-1, h))) {
+        int x_flags = follow_ ? ImPlotAxisFlags_AutoFit : 0;
+        ImPlot::SetupAxes(x_label_.c_str(), y_label_.c_str(),
+                          x_flags, ImPlotAxisFlags_AutoFit);
 
         for (auto& s : series_) {
             if (!s.buffer || s.buffer->empty()) continue;
 
             auto data = s.buffer->to_vector();
 
-            ImPlot::PushStyleColor(ImPlotCol_Line, s.color);
-            ImPlot::PlotLine(s.label.c_str(), data.data(), static_cast<int>(data.size()));
-            ImPlot::PopStyleColor();
+            ImPlotSpec spec;
+            spec.LineColor = ImGui::ColorConvertU32ToFloat4(s.color);
+            ImPlot::PlotLine(s.label.c_str(), data.data(), static_cast<int>(data.size()), 1.0, 0.0, spec);
         }
 
         ImPlot::EndPlot();

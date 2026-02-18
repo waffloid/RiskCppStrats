@@ -8,10 +8,14 @@
 
 static void print_usage() {
     std::printf("Usage: gym_economy [options]\n");
-    std::printf("  --solver=NAME    Economy solver: greedy, bootstrap, mcmc, branch_bound (default: greedy)\n");
-    std::printf("  --seed=N         Random seed (default: 42)\n");
-    std::printf("  --runs=N         Number of runs (default: 1)\n");
-    std::printf("  --output=PATH    Output CSV path (default: output/economy/results.csv)\n");
+    std::printf("  --solver=NAME      Economy solver: greedy, bootstrap, mcmc, branch_bound (default: greedy)\n");
+    std::printf("  --seed=N           Random seed (default: 42)\n");
+    std::printf("  --runs=N           Number of runs (default: 1)\n");
+    std::printf("  --nodes=N          Approximate node count (default: 50)\n");
+    std::printf("  --edge-dist=F      Edge distance threshold (default: 20.0)\n");
+    std::printf("  --max-nbrs=N       Max neighbors per node (default: 6)\n");
+    std::printf("  --region=F         Region width & height (default: 100.0)\n");
+    std::printf("  --output=PATH      Output CSV path (default: output/economy/results.csv)\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -20,6 +24,7 @@ int main(int argc, char* argv[]) {
     int runs = 1;
     int n_nodes_hint = 50;
     std::string output_path = "output/economy/results.csv";
+    GameConfig config{};
 
     for (int i = 1; i < argc; i++) {
         if (std::strncmp(argv[i], "--solver=", 9) == 0) {
@@ -30,6 +35,14 @@ int main(int argc, char* argv[]) {
             runs = std::atoi(argv[i] + 7);
         } else if (std::strncmp(argv[i], "--nodes=", 8) == 0) {
             n_nodes_hint = std::atoi(argv[i] + 8);
+        } else if (std::strncmp(argv[i], "--edge-dist=", 12) == 0) {
+            config.edge_distance_threshold = static_cast<float>(std::atof(argv[i] + 12));
+        } else if (std::strncmp(argv[i], "--max-nbrs=", 11) == 0) {
+            config.max_neighbors = std::atoi(argv[i] + 11);
+        } else if (std::strncmp(argv[i], "--region=", 9) == 0) {
+            float r = static_cast<float>(std::atof(argv[i] + 9));
+            config.region_width = r;
+            config.region_height = r;
         } else if (std::strncmp(argv[i], "--output=", 9) == 0) {
             output_path = argv[i] + 9;
         } else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
@@ -44,8 +57,6 @@ int main(int argc, char* argv[]) {
         print_usage();
         return 1;
     }
-
-    GameConfig config{};
 
     DataSink sink(output_path, {
         "run_id", "solver", "graph_seed", "n_nodes", "n_edges",

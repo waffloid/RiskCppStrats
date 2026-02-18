@@ -1,7 +1,9 @@
 #include "graph.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <numbers>
+#include <numeric>
 #include <random>
 
 Graph Graph::generate_poisson(const GameConfig& config, uint64_t seed) {
@@ -100,7 +102,10 @@ Graph Graph::generate_poisson(const GameConfig& config, uint64_t seed) {
     // Cull nodes with too many neighbors
     g.cull_high_degree(config.max_neighbors);
 
-    // Rebuild edge index after culling
+    // Reorder nodes by angular sweep from centroid for spatial locality
+    g.reorder_spatial();
+
+    // Rebuild edge index after culling + reorder
     g.build_edge_index();
 
     return g;
@@ -214,6 +219,105 @@ void Graph::cull_high_degree(int max_neighbors) {
 
     nodes = std::move(new_nodes);
     edges = std::move(new_edges);
+}
+
+void Graph::reorder_spatial() {
+    int n = num_nodes();
+    if (n <= 1) return;
+
+    // Compute centroid
+    float cx = 0.0f, cy = 0.0f;
+    for (const auto& node : nodes) {
+        cx += node.x;
+        cy += node.y;
+    }
+    cx /= static_cast<float>(n);
+    cy /= static_cast<float>(n);
+
+    // Sort indices by angle from centroid
+    std::vector<int> order(n);
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        return std::atan2(nodes[a].y - cy, nodes[a].x - cx)
+             < std::atan2(nodes[b].y - cy, nodes[b].x - cx);
+    });
+
+    // Build old_to_new mapping
+    std::vector<int> old_to_new(n);
+    for (int i = 0; i < n; i++) {
+        old_to_new[order[i]] = i;
+    }
+
+    // Reorder nodes
+    std::vector<Node> new_nodes(n);
+    for (int i = 0; i < n; i++) {
+        new_nodes[old_to_new[i]] = nodes[i];
+        new_nodes[old_to_new[i]].idx = old_to_new[i];
+        new_nodes[old_to_new[i]].neighbor_indices.clear();
+    }
+
+    // Remap edges
+    std::vector<Edge> new_edges;
+    new_edges.reserve(edges.size());
+    int eidx = 0;
+    for (const auto& e : edges) {
+        int na = old_to_new[e.a_idx];
+        int nb = old_to_new[e.b_idx];
+        Edge ne;
+        ne.a_idx = (na < nb) ? na : nb;
+        ne.b_idx = (na < nb) ? nb : na;
+        ne.idx = eidx++;
+        ne.length = e.length;
+        new_edges.push_back(ne);
+        new_nodes[na].neighbor_indices.push_back(nb);
+        new_nodes[nb].neighbor_indices.push_back(na);
+    }
+
+    nodes = std::move(new_nodes);
+    edges = std::move(new_edges);
+}
+
+std::vector<int> Graph::pick_spaced_capitals(int n_players) const {
+    int n = num_nodes();
+    if (n_players <= 0 || n == 0) return {};
+    if (n_players == 1) return {0};
+
+    // Compute centroid
+    float cx = 0.0f, cy = 0.0f;
+    for (const auto& node : nodes) {
+        cx += node.x;
+        cy += node.y;
+    }
+    cx /= static_cast<float>(n);
+    cy /= static_cast<float>(n);
+
+    // Precompute angles
+    std::vector<float> angles(n);
+    for (int i = 0; i < n; i++) {
+        angles[i] = std::atan2(nodes[i].y - cy, nodes[i].x - cx);
+    }
+
+    // For each player, find the node closest to target angle
+    constexpr float TWO_PI = 2.0f * std::numbers::pi_v<float>;
+    std::vector<int> caps;
+    caps.reserve(n_players);
+    for (int p = 0; p < n_players; p++) {
+        float target = -std::numbers::pi_v<float> + static_cast<float>(p) * TWO_PI / static_cast<float>(n_players);
+        int best = -1;
+        float best_diff = 1e9f;
+        for (int i = 0; i < n; i++) {
+            // Angular distance (wrap-around)
+            float diff = std::fabs(angles[i] - target);
+            if (diff > std::numbers::pi_v<float>) diff = TWO_PI - diff;
+            if (diff < best_diff) {
+                best_diff = diff;
+                best = i;
+            }
+        }
+        caps.push_back(best);
+    }
+
+    return caps;
 }
 
 void Graph::build_edge_index() {

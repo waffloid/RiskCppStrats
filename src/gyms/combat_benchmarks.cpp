@@ -36,6 +36,11 @@ static CombatBenchmark make_corridor() {
     b.capitals = {0, 9};
     b.config.init_troop_count = 200;
     b.max_ticks = 3000;
+    // Each player owns factories along their half of the corridor
+    for (int node : {1, 2, 3, 4})
+        b.overrides.push_back({node, NodeState::FACTORY, 0, 100});
+    for (int node : {5, 6, 7, 8})
+        b.overrides.push_back({node, NodeState::FACTORY, 1, 100});
     return b;
 }
 
@@ -47,10 +52,10 @@ static CombatBenchmark make_bipartite_3_5() {
     b.config.init_troop_count = 300;
     b.max_ticks = 2000;
     // Each player gets territory in their partition
-    b.overrides.push_back({1, NodeState::DEFAULT, 0, 150});
-    b.overrides.push_back({2, NodeState::DEFAULT, 0, 150});
-    b.overrides.push_back({4, NodeState::DEFAULT, 1, 150});
-    b.overrides.push_back({5, NodeState::DEFAULT, 1, 150});
+    b.overrides.push_back({1, NodeState::FACTORY, 0, 150});
+    b.overrides.push_back({2, NodeState::FACTORY, 0, 150});
+    b.overrides.push_back({4, NodeState::FACTORY, 1, 150});
+    b.overrides.push_back({5, NodeState::FACTORY, 1, 150});
     return b;
 }
 
@@ -62,8 +67,8 @@ static CombatBenchmark make_star_hub() {
     b.config.init_troop_count = 300;
     b.max_ticks = 2000;
     // Give opponent some leaves
-    b.overrides.push_back({2, NodeState::DEFAULT, 1, 100});
-    b.overrides.push_back({3, NodeState::DEFAULT, 1, 100});
+    b.overrides.push_back({2, NodeState::FACTORY, 1, 100});
+    b.overrides.push_back({3, NodeState::FACTORY, 1, 100});
     return b;
 }
 
@@ -83,9 +88,9 @@ static CombatBenchmark make_grid_5x5() {
     //   .  .  . 18 19
     //   .  .  . 23 24*
     for (int node : {1, 2, 5, 6, 10})
-        b.overrides.push_back({node, NodeState::DEFAULT, 0, 150});
+        b.overrides.push_back({node, NodeState::FACTORY, 0, 150});
     for (int node : {14, 18, 19, 22, 23})
-        b.overrides.push_back({node, NodeState::DEFAULT, 1, 150});
+        b.overrides.push_back({node, NodeState::FACTORY, 1, 150});
 
     return b;
 }

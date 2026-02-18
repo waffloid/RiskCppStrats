@@ -47,8 +47,9 @@ int main() {
     config.max_neighbors = 7;
     config.init_default_troops = 25;
 
-    std::vector<int> capitals = {0, 1};
-    Game game(config, capitals, seed);
+    Graph sg = Graph::generate_poisson(config, seed);
+    auto capitals = sg.pick_spaced_capitals(2);
+    Game game(config, std::move(sg), capitals);
     int n_total = game.n_players();
 
     printf("Running %d ticks with 2 AttentionAIs...\n", ticks);

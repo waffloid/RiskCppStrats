@@ -85,6 +85,57 @@ BuildPlan economy_solver_branch_bound(
     int player_id,
     const GameConfig& config);
 
+// ── Incremental MCMC stepper (for live visualization) ─────────
+
+#include <random>
+
+class MCMCStepper {
+public:
+    MCMCStepper(const Graph& graph,
+                const std::vector<NodeData>& nodes,
+                int player_id,
+                const GameConfig& config,
+                int total_iterations,
+                float initial_temp);
+
+    // Advance by n iterations. Always returns true (runs indefinitely).
+    bool step(int n_iters);
+
+    // Reset to initial state (greedy warm start) with new params.
+    void reset(int total_iterations, float initial_temp);
+
+    // Accessors
+    int iteration() const { return iter_; }
+    float current_production() const { return current_prod_; }
+    float best_production() const { return best_prod_; }
+    float& initial_temp() { return initial_temp_; }
+    int& cooling_rate() { return total_iters_; }
+    const std::vector<NodeData>& current_state() const { return work_; }
+    const std::vector<NodeData>& best_state() const { return best_state_; }
+    MCMCTrace& trace() { return trace_; }
+    const MCMCTrace& trace() const { return trace_; }
+
+private:
+    const Graph* graph_;
+    int player_id_;
+    GameConfig config_;
+    int total_iters_;
+    float initial_temp_;
+
+    std::vector<int> candidates_;
+    std::vector<NodeData> initial_nodes_;
+    std::vector<NodeData> work_;
+    std::vector<NodeData> best_state_;
+    float current_prod_ = 0.0f;
+    float best_prod_ = 0.0f;
+    int iter_ = 0;
+
+    std::mt19937 rng_{42};
+    MCMCTrace trace_;
+
+    void init_warm_start();
+};
+
 // ── Utility ────────────────────────────────────────────────────
 
 // Compute the production rate for a given assignment of nodes.
@@ -95,8 +146,10 @@ float compute_production_rate(
     int player_id,
     const GameConfig& config);
 
-// Compute theoretical max production if every owned factory/capital
-// were powered by an adjacent powerplant.
+// Compute a relaxed upper bound on production for owned nodes.
+// Assumes every non-capital owned node is a factory AND every producer
+// is powered. This is infeasible (powerplants take factory slots) but
+// provides a valid upper bound. The exact optimum is NP-hard.
 float compute_theoretical_max_production(
     const Graph& graph,
     const std::vector<NodeData>& nodes,

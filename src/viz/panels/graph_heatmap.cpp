@@ -3,27 +3,40 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 GraphHeatmap::GraphHeatmap(std::string title, const Graph* graph, ValueFn value_fn)
     : title_(std::move(title)), graph_(graph), value_fn_(std::move(value_fn)) {}
 
 unsigned int GraphHeatmap::value_to_color(float t) {
-    // Blue (0) -> Green (0.5) -> Red (1.0)
     t = std::clamp(t, 0.0f, 1.0f);
-    float r, g, b;
-    if (t < 0.5f) {
-        float s = t * 2.0f;
-        r = 0.0f;
-        g = s;
-        b = 1.0f - s;
-    } else {
-        float s = (t - 0.5f) * 2.0f;
-        r = s;
-        g = 1.0f - s;
-        b = 0.0f;
+    auto v = static_cast<unsigned int>(t * 255.0f);
+    return IM_COL32(v, v, v, 255);
+}
+
+void GraphHeatmap::apply_norm(std::vector<float>& values, HeatmapNorm mode) {
+    if (mode == HeatmapNorm::Linear) return;
+
+    if (mode == HeatmapNorm::Log) {
+        for (float& v : values) {
+            // Sign-preserving log: preserves relative ordering, expands small diffs
+            float sign = (v >= 0.0f) ? 1.0f : -1.0f;
+            v = sign * std::log1p(std::fabs(v));
+        }
+    } else if (mode == HeatmapNorm::Rank) {
+        int n = static_cast<int>(values.size());
+        // Sort indices by value, assign rank as new value
+        std::vector<int> idx(n);
+        std::iota(idx.begin(), idx.end(), 0);
+        std::sort(idx.begin(), idx.end(), [&](int a, int b) {
+            return values[a] < values[b];
+        });
+        std::vector<float> ranked(n);
+        for (int i = 0; i < n; i++) {
+            ranked[idx[i]] = static_cast<float>(i) / static_cast<float>(std::max(1, n - 1));
+        }
+        values = std::move(ranked);
     }
-    auto to_byte = [](float v) { return static_cast<unsigned int>(v * 255.0f); };
-    return IM_COL32(to_byte(r), to_byte(g), to_byte(b), 255);
 }
 
 void GraphHeatmap::draw() {
@@ -39,6 +52,17 @@ void GraphHeatmap::draw() {
         return;
     }
 
+    // Norm mode selector
+    const char* norm_labels[] = { "Linear", "Log", "Rank" };
+    int norm_idx = static_cast<int>(norm);
+    ImGui::SetNextItemWidth(80.0f);
+    if (ImGui::Combo("Norm", &norm_idx, norm_labels, 3)) {
+        norm = static_cast<HeatmapNorm>(norm_idx);
+    }
+
+    // Apply normalization transform before auto-range
+    apply_norm(values, norm);
+
     // Auto-range
     if (auto_range && n > 0) {
         vmin = *std::min_element(values.begin(), values.end());
@@ -46,10 +70,12 @@ void GraphHeatmap::draw() {
         if (vmax - vmin < 1e-6f) { vmin -= 0.5f; vmax += 0.5f; }
     }
 
-    // Get draw area
+    // Get draw area — fill the entire available region
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    float size = std::min(avail.x, avail.y);
-    if (size < 50.0f) size = 200.0f;
+    float draw_w = avail.x;
+    float draw_h = avail.y - 20.0f;  // reserve space for legend text
+    if (draw_w < 50.0f) draw_w = 200.0f;
+    if (draw_h < 50.0f) draw_h = 200.0f;
 
     ImVec2 origin = ImGui::GetCursorScreenPos();
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -66,40 +92,78 @@ void GraphHeatmap::draw() {
     if (range_x < 1e-6f) range_x = 1.0f;
     if (range_y < 1e-6f) range_y = 1.0f;
 
+    // Fit graph into available rect while preserving aspect ratio
     float margin = 12.0f;
-    float scale = (size - 2 * margin) / std::max(range_x, range_y);
+    float scale_x = (draw_w - 2 * margin) / range_x;
+    float scale_y = (draw_h - 2 * margin) / range_y;
+    float scale = std::min(scale_x, scale_y);
+
+    // Center the graph in the available area
+    float used_w = range_x * scale;
+    float used_h = range_y * scale;
+    float off_x = (draw_w - used_w) * 0.5f;
+    float off_y = (draw_h - used_h) * 0.5f;
 
     auto to_screen = [&](float x, float y) -> ImVec2 {
         return ImVec2(
-            origin.x + margin + (x - min_x) * scale,
-            origin.y + margin + (y - min_y) * scale
+            origin.x + off_x + (x - min_x) * scale,
+            origin.y + off_y + (y - min_y) * scale
         );
     };
 
     // Draw edges
-    for (int i = 0; i < n; i++) {
-        float ix = graph_->nodes[i].x, iy = graph_->nodes[i].y;
-        ImVec2 p0 = to_screen(ix, iy);
-        for (int nbr : graph_->neighbors(i)) {
-            if (nbr <= i) continue;  // draw each edge once
-            float nx = graph_->nodes[nbr].x, ny = graph_->nodes[nbr].y;
-            ImVec2 p1 = to_screen(nx, ny);
-            dl->AddLine(p0, p1, IM_COL32(80, 80, 80, 100), 1.0f);
+    std::vector<float> edge_vals;
+    if (edge_value_fn_) edge_vals = edge_value_fn_();
+
+    if (!edge_vals.empty() && static_cast<int>(edge_vals.size()) == static_cast<int>(graph_->edges.size())) {
+        // Edge coloring from callback
+        for (const auto& e : graph_->edges) {
+            ImVec2 p0 = to_screen(graph_->nodes[e.a_idx].x, graph_->nodes[e.a_idx].y);
+            ImVec2 p1 = to_screen(graph_->nodes[e.b_idx].x, graph_->nodes[e.b_idx].y);
+            float ev = std::clamp(edge_vals[e.idx], 0.0f, 1.0f);
+            // 0 = dim gray, 1 = bright yellow
+            auto r = static_cast<unsigned int>(80 + ev * 175);
+            auto g = static_cast<unsigned int>(80 + ev * 175);
+            auto b = static_cast<unsigned int>(80 * (1.0f - ev));
+            auto a = static_cast<unsigned int>(100 + ev * 155);
+            float thickness = 1.0f + ev * 2.0f;
+            dl->AddLine(p0, p1, IM_COL32(r, g, b, a), thickness);
+        }
+    } else {
+        // Default flat gray edges
+        for (int i = 0; i < n; i++) {
+            ImVec2 p0 = to_screen(graph_->nodes[i].x, graph_->nodes[i].y);
+            for (int nbr : graph_->neighbors(i)) {
+                if (nbr <= i) continue;
+                ImVec2 p1 = to_screen(graph_->nodes[nbr].x, graph_->nodes[nbr].y);
+                dl->AddLine(p0, p1, IM_COL32(80, 80, 80, 100), 1.0f);
+            }
         }
     }
 
     // Draw nodes
     float radius = std::max(3.0f, scale * 0.02f);
-    for (int i = 0; i < n; i++) {
-        float t = (vmax - vmin > 1e-6f) ? (values[i] - vmin) / (vmax - vmin) : 0.5f;
-        unsigned int col = value_to_color(t);
-        float x = graph_->nodes[i].x, y = graph_->nodes[i].y;
-        ImVec2 pos = to_screen(x, y);
-        dl->AddCircleFilled(pos, radius, col);
+    std::vector<unsigned int> node_colors;
+    if (node_color_fn_) node_colors = node_color_fn_();
+
+    if (!node_colors.empty() && static_cast<int>(node_colors.size()) == n) {
+        // Direct node colors from callback
+        for (int i = 0; i < n; i++) {
+            ImVec2 pos = to_screen(graph_->nodes[i].x, graph_->nodes[i].y);
+            dl->AddCircleFilled(pos, radius, node_colors[i]);
+        }
+    } else {
+        // Default heatmap ramp
+        float inv_range = (vmax - vmin > 1e-6f) ? 1.0f / (vmax - vmin) : 0.0f;
+        for (int i = 0; i < n; i++) {
+            float t = std::clamp((values[i] - vmin) * inv_range, 0.0f, 1.0f);
+            ImVec2 pos = to_screen(graph_->nodes[i].x, graph_->nodes[i].y);
+            dl->AddCircleFilled(pos, radius, value_to_color(t));
+        }
     }
 
     // Reserve space so ImGui layout works
-    ImGui::Dummy(ImVec2(size, size));
+    ImGui::Dummy(ImVec2(draw_w, draw_h));
 
     // Color legend
     ImGui::Text("Range: [%.3f, %.3f]", vmin, vmax);

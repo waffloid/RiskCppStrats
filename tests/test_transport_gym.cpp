@@ -181,6 +181,20 @@ static void test_transport_gym_path_convergence() {
                 r.initial_loss, r.final_loss, r.total_ticks);
 }
 
+static void test_poisson_edge_ring_converges() {
+    auto preset = get_transport_preset("poisson_edge_ring");
+    assert(preset.has_value());
+
+    TransportGymResult r = run_transport_gym(*preset, "greedy", "l1", 5000);
+
+    assert(!r.ticks.empty());
+    assert(r.initial_loss > 0.0f);
+    assert(r.final_loss < r.initial_loss);
+
+    std::printf("test_poisson_edge_ring_converges: PASS (%.1f -> %.1f, %d nodes)\n",
+                r.initial_loss, r.final_loss, preset->graph.num_nodes());
+}
+
 int main() {
     test_loss_l1();
     test_loss_l2();
@@ -194,6 +208,7 @@ int main() {
     test_presets_are_valid();
     test_transport_gym_loss_decreases();
     test_transport_gym_path_convergence();
+    test_poisson_edge_ring_converges();
 
     std::printf("\nAll transport gym tests passed.\n");
     return 0;

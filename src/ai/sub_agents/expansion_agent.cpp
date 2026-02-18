@@ -13,16 +13,15 @@ void ExpansionSubAgent::score(const Game& game, int player_id,
         if (nd.state == NodeState::CAPITAL) continue;
         if (nd.owner == player_id) continue;
 
-        // Non-owned node adjacent to our territory
-        bool adjacent_to_us = false;
+        // Non-owned node adjacent to our territory.
+        // Score by number of owned neighbors: nodes surrounded by more of our
+        // territory are easier to capture and fill gaps before pushing frontier.
+        int owned_nbrs = 0;
         for (int nbr : graph.neighbors(node)) {
-            if (nodes_data[nbr].owner == player_id) {
-                adjacent_to_us = true;
-                break;
-            }
+            if (nodes_data[nbr].owner == player_id) owned_nbrs++;
         }
-        if (adjacent_to_us) {
-            scores_out[node] = config_.expansion_border_score;
+        if (owned_nbrs > 0) {
+            scores_out[node] = config_.expansion_border_score * owned_nbrs;
         }
     }
 }

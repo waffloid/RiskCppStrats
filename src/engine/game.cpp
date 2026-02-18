@@ -156,11 +156,25 @@ void Game::process_troop_sends(const std::vector<PlayerCommands>& commands) {
             int eidx = graph_.edge_between(cmd.from_node, first_hop);
             if (eidx < 0) continue;
 
+            // Auto-retreat same-owner groups flowing in the opposite direction.
+            // If counter-flow exists, retreat it but don't send new troops —
+            // the retreated troops will return and the node can re-evaluate.
+            EdgeLanes& el = edge_lanes_[eidx];
+            int opposite_lane = (cmd.from_node == el.node_a) ? 1 : 0;
+            bool had_counter_flow = false;
+            for (auto& g : el.lanes[opposite_lane].groups) {
+                if (g.owner == p && !g.retreating) {
+                    g.retreating = true;
+                    had_counter_flow = true;
+                }
+            }
+            if (had_counter_flow) continue;  // just retreat, don't send
+
             // Deduct troops from node
             node_data_[cmd.from_node].troops[p] -= cmd.count;
 
             // Insert into edge lane
-            insert_troop_group(edge_lanes_[eidx], cmd.from_node, p, cmd.count,
+            insert_troop_group(el, cmd.from_node, p, cmd.count,
                                cmd.to_node);
         }
     }
@@ -294,6 +308,47 @@ void Game::update_alive() {
 
         alive_[p] = has_troops;
     }
+}
+
+std::vector<float> Game::effective_troops(int player_id) const {
+    int n = graph_.num_nodes();
+    std::vector<float> result(n);
+
+    // Node troops
+    for (int i = 0; i < n; i++) {
+        result[i] = static_cast<float>(node_data_[i].troops[player_id]);
+    }
+
+    // In-transit troops interpolated by position
+    for (const EdgeLanes& el : edge_lanes_) {
+        // Lane 0: A→B. position 0=A, 1=B
+        for (const TroopGroup& g : el.lanes[0].groups) {
+            if (g.owner != player_id) continue;
+            float t = g.retreating ? (1.0f - g.position) : g.position;
+            // t=0 means at A, t=1 means at B (accounting for retreat)
+            if (g.retreating) {
+                // Retreating: heading back to A, position still measured from A
+                result[el.node_a] += g.position * static_cast<float>(g.count);
+                result[el.node_b] += (1.0f - g.position) * static_cast<float>(g.count);
+            } else {
+                result[el.node_a] += (1.0f - g.position) * static_cast<float>(g.count);
+                result[el.node_b] += g.position * static_cast<float>(g.count);
+            }
+        }
+        // Lane 1: B→A. position 0=B, 1=A
+        for (const TroopGroup& g : el.lanes[1].groups) {
+            if (g.owner != player_id) continue;
+            if (g.retreating) {
+                result[el.node_b] += g.position * static_cast<float>(g.count);
+                result[el.node_a] += (1.0f - g.position) * static_cast<float>(g.count);
+            } else {
+                result[el.node_b] += (1.0f - g.position) * static_cast<float>(g.count);
+                result[el.node_a] += g.position * static_cast<float>(g.count);
+            }
+        }
+    }
+
+    return result;
 }
 
 bool Game::is_game_over() const {

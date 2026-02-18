@@ -40,6 +40,11 @@ public:
 
     bool is_game_over() const;
 
+    // Effective troop counts per node for a player, including in-transit troops
+    // interpolated by position along edges. A group at position t on edge A→B
+    // contributes (1-t)*count to A and t*count to B.
+    std::vector<float> effective_troops(int player_id) const;
+
 private:
     GameConfig config_;
     Graph graph_;

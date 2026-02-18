@@ -16,6 +16,7 @@ extern void register_v1_knapsack();
 extern void register_v1_knapsack_hybrid();
 extern void register_v2_knapsack();
 extern void register_v3();
+extern void register_v4();
 
 static void ensure_registered() {
     static bool done = false;
@@ -26,6 +27,7 @@ static void ensure_registered() {
     register_v1_knapsack_hybrid();
     register_v2_knapsack();
     register_v3();
+    register_v4();
 }
 
 const ModelFactory* get_model(const std::string& name) {

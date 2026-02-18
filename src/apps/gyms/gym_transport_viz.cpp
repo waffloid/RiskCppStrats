@@ -3,36 +3,31 @@
 #include "systems/transport/loss_functions.hpp"
 #include "engine/game.hpp"
 
-#include "renderer/renderer.hpp"
-#include "renderer/camera.hpp"
-
+#include "viz/viz_app.hpp"
 #include "viz/panel_host.hpp"
 #include "viz/ring_buffer.hpp"
 #include "viz/panels/time_series_chart.hpp"
 #include "viz/panels/graph_heatmap.hpp"
 #include "viz/panels/stats_table.hpp"
 #include "viz/panels/playback_controls.hpp"
+#include "viz/panels/tabbed_panel.hpp"
+#include "viz/imgui_theme.hpp"
 
 #include "raylib.h"
-#include "imgui.h"
-#include "implot.h"
-#include "rlImGui.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <random>
 #include <string>
 #include <memory>
 #include <vector>
-#include <cmath>
 
 static void print_usage() {
     std::printf("Usage: gym_transport_viz [options]\n");
     std::printf("  --preset=NAME    Transport preset (default: star_center)\n");
     std::printf("  --solver=NAME    Transport solver (default: greedy)\n");
     std::printf("  --loss=NAME      Loss function (default: l1)\n");
-    std::printf("  --ticks=N        Max ticks (default: 500)\n");
-
     std::printf("\nAvailable presets:\n");
     for (const auto& name : list_transport_presets()) {
         std::printf("  %s\n", name.c_str());
@@ -51,7 +46,6 @@ int main(int argc, char* argv[]) {
     std::string preset_name = "star_center";
     std::string solver_name = "greedy";
     std::string loss_name = "l1";
-    int max_ticks = 500;
 
     for (int i = 1; i < argc; i++) {
         if (std::strncmp(argv[i], "--preset=", 9) == 0)
@@ -60,8 +54,6 @@ int main(int argc, char* argv[]) {
             solver_name = argv[i] + 9;
         else if (std::strncmp(argv[i], "--loss=", 7) == 0)
             loss_name = argv[i] + 7;
-        else if (std::strncmp(argv[i], "--ticks=", 8) == 0)
-            max_ticks = std::atoi(argv[i] + 8);
         else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
             print_usage();
             return 0;
@@ -74,7 +66,7 @@ int main(int argc, char* argv[]) {
         print_usage();
         return 1;
     }
-    const TransportPreset& preset = *preset_opt;
+    TransportPreset preset = *preset_opt;  // mutable — mouse-follow overwrites target
 
     TransportSolver solver = get_transport_solver(solver_name);
     if (!solver) { std::fprintf(stderr, "Unknown solver: %s\n", solver_name.c_str()); return 1; }
@@ -95,19 +87,9 @@ int main(int argc, char* argv[]) {
         game.set_node_state(i, state, 0, preset.initial_troops[i]);
     }
 
-    // --- Window setup ---
-    int screen_w = 1400, screen_h = 800;
-    InitWindow(screen_w, screen_h, "CRisky Transport Gym Viz");
-    SetTargetFPS(60);
-
-    rlImGuiSetup(true);
-    ImPlot::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-
-    Renderer renderer(screen_w, screen_h);
-    Camera2D_Custom camera;
-    camera.fit_to_graph(game.graph(), screen_w, screen_h);
+    // --- VizApp ---
+    VizApp app("CRisky Transport Gym Viz", 1400, 800);
+    app.init_camera(game.graph());
 
     // --- Ring buffers ---
     RingBuffer<float> buf_loss(4096);
@@ -115,40 +97,58 @@ int main(int argc, char* argv[]) {
     RingBuffer<float> buf_in_transit(4096);
 
     // --- Per-tick state ---
-    std::vector<float> deficit(n, 0.0f);      // target - current per node
-    std::vector<float> current_frac(n, 0.0f); // current / total per node
+    std::vector<float> deficit(n, 0.0f);
+    std::vector<float> current_frac(n, 0.0f);
+
+    // Static target distribution (normalized)
+    std::vector<float> target_frac(n, 0.0f);
+    {
+        int total_target = 0;
+        for (int i = 0; i < n; i++) total_target += preset.target_troops[i];
+        if (total_target > 0) {
+            for (int i = 0; i < n; i++)
+                target_frac[i] = static_cast<float>(preset.target_troops[i]) /
+                                 static_cast<float>(total_target);
+        }
+    }
 
     // --- Compose panels ---
     PanelHost host;
 
-    // Loss over time
-    auto loss_chart = std::make_unique<TimeSeriesChart>("Loss", "Tick", loss_name);
-    loss_chart->add_series("Loss", IM_COL32(255, 99, 71, 255), &buf_loss);
-    host.add(std::move(loss_chart));
+    std::vector<std::pair<TimeSeriesChart*, int>> metric_charts;  // chart, metric index
+    auto charts_tab = std::make_unique<TabbedPanel>("Charts");
+    {
+        const auto& scheme = COLOR_SCHEMES[app.scheme_idx()];
+        auto loss_chart = std::make_unique<TimeSeriesChart>("Loss", "Tick", loss_name);
+        loss_chart->add_series("Loss", scheme_metric_color(scheme, 0), &buf_loss);
+        metric_charts.push_back({loss_chart.get(), 0});
+        charts_tab->add_tab(std::move(loss_chart));
 
-    // Loss delta over time
-    auto delta_chart = std::make_unique<TimeSeriesChart>("Loss Delta", "Tick", "Delta");
-    delta_chart->add_series("Delta", IM_COL32(255, 215, 0, 255), &buf_loss_delta);
-    host.add(std::move(delta_chart));
+        auto delta_chart = std::make_unique<TimeSeriesChart>("Loss Delta", "Tick", "Delta");
+        delta_chart->add_series("Delta", scheme_metric_color(scheme, 1), &buf_loss_delta);
+        metric_charts.push_back({delta_chart.get(), 1});
+        charts_tab->add_tab(std::move(delta_chart));
 
-    // Troops in transit
-    auto transit_chart = std::make_unique<TimeSeriesChart>("In Transit", "Tick", "Troops");
-    transit_chart->add_series("Transit", IM_COL32(100, 149, 237, 255), &buf_in_transit);
-    host.add(std::move(transit_chart));
+        auto transit_chart = std::make_unique<TimeSeriesChart>("In Transit", "Tick", "Troops");
+        transit_chart->add_series("Transit", scheme_metric_color(scheme, 2), &buf_in_transit);
+        metric_charts.push_back({transit_chart.get(), 2});
+        charts_tab->add_tab(std::move(transit_chart));
+    }
+    host.add(std::move(charts_tab));
 
-    // Deficit heatmap
     host.add(std::make_unique<GraphHeatmap>(
-        "Deficit", &game.graph(),
+        "Target Field", &game.graph(),
+        [&]() -> std::vector<float> { return target_frac; }
+    ));
+    host.add(std::make_unique<GraphHeatmap>(
+        "Deficit (Flow Gradient)", &game.graph(),
         [&]() -> std::vector<float> { return deficit; }
     ));
-
-    // Current distribution heatmap
     host.add(std::make_unique<GraphHeatmap>(
         "Current Distribution", &game.graph(),
         [&]() -> std::vector<float> { return current_frac; }
     ));
 
-    // Stats table
     int tick_count = 0;
     float current_loss = 0.0f;
     int current_transit = 0;
@@ -168,121 +168,101 @@ int main(int argc, char* argv[]) {
         return rows;
     }));
 
-    // Playback controls
-    float speed = 1.0f;
-    bool paused = false;
-    host.add(std::make_unique<PlaybackControls>(&speed, &paused, &tick_count));
+    host.add(std::make_unique<PlaybackControls>(&app.speed(), &app.paused(), &tick_count));
+
+    // --- Mouse-follow mode ---
+    bool mouse_follow = false;
+    int total_troops = 0;
+    for (int i = 0; i < n; i++) total_troops += preset.initial_troops[i];
+    int mouse_node = -1;
 
     // --- Game loop ---
-    std::vector<bool> no_mask(n, false);
+    std::mt19937 rng(42);
+    std::vector<float> warm_phi;
     float prev_loss = 0.0f;
-    bool done = false;
-    float tick_accumulator = 0.0f;
 
-    while (!WindowShouldClose()) {
-        // --- Simulation ---
-        if (!paused && !done) {
-            tick_accumulator += speed;
-            while (tick_accumulator >= 1.0f) {
-                tick_accumulator -= 1.0f;
+    while (!app.should_close()) {
+        // Toggle mouse-follow with M
+        if (IsKeyPressed(KEY_M)) {
+            mouse_follow = !mouse_follow;
+            if (mouse_follow) app.paused() = false;
+        }
 
-                // Current on-node distribution
-                std::vector<int> current(n);
-                int total_on_nodes = 0;
-                for (int i = 0; i < n; i++) {
-                    current[i] = game.node_data()[i].troops[0];
-                    total_on_nodes += current[i];
+        // Update target from mouse position
+        if (mouse_follow) {
+            Vector2 screen_pos = GetMousePosition();
+            Vector2 world_pos = app.camera().screen_to_world(screen_pos);
+
+            float best_dist = 1e18f;
+            int best_node = 0;
+            for (int i = 0; i < n; i++) {
+                float dx = game.graph().nodes[i].x - world_pos.x;
+                float dy = game.graph().nodes[i].y - world_pos.y;
+                float d2 = dx * dx + dy * dy;
+                if (d2 < best_dist) {
+                    best_dist = d2;
+                    best_node = i;
                 }
+            }
 
-                // Compute loss
-                float loss = loss_fn(current, preset.target_troops);
-                if (tick_count == 0) prev_loss = loss;
-                current_loss = loss;
-
-                // Compute deficit & current_frac for heatmaps
-                for (int i = 0; i < n; i++) {
-                    deficit[i] = static_cast<float>(preset.target_troops[i] - current[i]);
-                    current_frac[i] = (total_on_nodes > 0)
-                        ? static_cast<float>(current[i]) / static_cast<float>(total_on_nodes)
-                        : 0.0f;
-                }
-
-                // Count troops in transit
-                current_transit = 0;
-                for (const auto& el : game.edge_lanes()) {
-                    for (int lane = 0; lane < 2; lane++) {
-                        for (const auto& g : el.lanes[lane].groups) {
-                            if (g.owner == 0) current_transit += g.count;
-                        }
-                    }
-                }
-
-                // Push to ring buffers
-                buf_loss.push(loss);
-                buf_loss_delta.push(loss - prev_loss);
-                buf_in_transit.push(static_cast<float>(current_transit));
-                prev_loss = loss;
-
-                // Compute gradient from deficit
-                std::vector<float> gradient(n);
-                for (int i = 0; i < n; i++) {
-                    gradient[i] = static_cast<float>(preset.target_troops[i] - current[i]);
-                }
-
-                // Get commands from solver
-                auto commands = solver(game.graph(), game.node_data(), gradient, 0, no_mask);
-
-                // Apply via game tick
-                std::vector<PlayerCommands> all_commands(game.n_players());
-                all_commands[0].troops = std::move(commands);
-                game.tick(1.0f, all_commands);
-                tick_count++;
-
-                if (tick_count >= max_ticks) {
-                    done = true;
-                    break;
-                }
+            if (best_node != mouse_node) {
+                mouse_node = best_node;
+                preset.target_troops.assign(n, 0);
+                preset.target_troops[mouse_node] = total_troops;
+                // Update target_frac for heatmap
+                target_frac.assign(n, 0.0f);
+                target_frac[mouse_node] = 1.0f;
             }
         }
 
-        if (paused) tick_accumulator = 0.0f;
-        camera.update();
+        // --- Simulation ---
+        float tick_dt;
+        while ((tick_dt = app.consume_tick()) > 0) {
+            auto tr = transport_gym_tick(game, preset, solver, loss_fn, rng, warm_phi, tick_dt);
+
+            if (tick_count == 0) prev_loss = tr.loss;
+            current_loss = tr.loss;
+            current_transit = tr.in_transit;
+
+            // Update viz state from tick result
+            int total_troops = 0;
+            for (int i = 0; i < n; i++) total_troops += tr.current[i];
+            for (int i = 0; i < n; i++) {
+                deficit[i] = tr.deficit[i];
+                current_frac[i] = (total_troops > 0)
+                    ? static_cast<float>(tr.current[i]) / static_cast<float>(total_troops)
+                    : 0.0f;
+            }
+
+            buf_loss.push(tr.loss);
+            buf_loss_delta.push(tr.loss - prev_loss);
+            buf_in_transit.push(static_cast<float>(tr.in_transit));
+            prev_loss = tr.loss;
+            tick_count++;
+        }
 
         // --- Rendering ---
-        BeginDrawing();
-        ClearBackground(BLACK);
+        app.begin_frame();
+        app.draw_game(game);
 
-        // Game world
-        BeginMode2D(Camera2D{
-            .offset = camera.offset(),
-            .target = {0, 0},
-            .rotation = camera.rotation(),
-            .zoom = camera.zoom()
-        });
-        renderer.draw(game, camera);
-        EndMode2D();
+        const auto& scheme = COLOR_SCHEMES[app.scheme_idx()];
+        Color status_color = scheme.sys_color();
+        status_color.a = 200;
+        const char* mode = mouse_follow ? "MOUSE" : "PRESET";
+        DrawText(TextFormat("Tick: %d  Speed: %.0fx  Loss: %.1f  [%s] (M=toggle)",
+                            tick_count, app.speed(), current_loss, mode),
+                 10, app.screen_h() - 30, 16, status_color);
 
-        // Status bar
-        if (done) {
-            DrawText("DONE", screen_w / 2 - 30, 10, 24, GREEN);
-        }
-        DrawText(TextFormat("Tick: %d/%d  Speed: %.0fx  Loss: %.1f",
-                            tick_count, max_ticks, speed, current_loss),
-                 10, screen_h - 30, 16, LIGHTGRAY);
+        // Sync metric chart colors with theme
+        for (auto& [chart, idx] : metric_charts)
+            chart->set_series_color(0, scheme_metric_color(scheme, idx));
 
-        // ImGui frame
-        rlImGuiBegin();
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
-                                     ImGuiDockNodeFlags_PassthruCentralNode);
+        app.begin_imgui();
         host.draw();
-        rlImGuiEnd();
+        app.end_imgui();
 
-        EndDrawing();
+        app.end_frame();
     }
-
-    ImPlot::DestroyContext();
-    rlImGuiShutdown();
-    CloseWindow();
 
     // Print final results
     std::printf("\n=== Transport Gym Viz Results ===\n");

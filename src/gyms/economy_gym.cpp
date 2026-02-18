@@ -1,5 +1,6 @@
 #include "gyms/economy_gym.hpp"
 #include "engine/game.hpp"
+#include "systems/graph_algo/qubo_objectives.hpp"
 
 EconomySolver get_economy_solver(const std::string& name) {
     if (name == "greedy") return economy_solver_greedy;
@@ -10,6 +11,36 @@ EconomySolver get_economy_solver(const std::string& name) {
     }
     if (name == "mcmc") return economy_solver_mcmc;
     if (name == "branch_bound") return economy_solver_branch_bound;
+    if (name == "qubo") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "production");
+        };
+    }
+    if (name == "qubo_adjacency") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "adjacency");
+        };
+    }
+    if (name == "qubo_distance") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "distance");
+        };
+    }
+    if (name == "qubo_degree") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "degree");
+        };
+    }
+    if (name == "qubo_composite") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "composite");
+        };
+    }
+    if (name == "qubo_factory_biased") {
+        return [](const Graph& g, const std::vector<NodeData>& n, int pid, const GameConfig& c) {
+            return economy_solver_qubo(g, n, pid, c, "factory_biased");
+        };
+    }
     return nullptr;
 }
 
@@ -23,13 +54,20 @@ EconomyGymState run_economy_gym(
     state.config = config;
     state.player_id = 0;
 
+    // Derive Poisson intensity from node count hint if provided
+    GameConfig gen_config = config;
+    if (n_nodes_hint > 0) {
+        float area = gen_config.region_width * gen_config.region_height;
+        gen_config.poisson_intensity = static_cast<float>(n_nodes_hint) / area;
+    }
+
     // Generate a Poisson graph.  Place one capital for the test player.
     std::vector<int> capitals = {0};
-    Game game(config, capitals, seed);
+    Game game(gen_config, capitals, seed);
 
     state.graph = game.graph();
     state.nodes = game.node_data();
-    (void)n_nodes_hint; // Poisson intensity is baked into config
+    state.config = gen_config;
 
     // Give the player ownership of all nodes so the solver has full territory.
     for (int i = 0; i < state.graph.num_nodes(); i++) {

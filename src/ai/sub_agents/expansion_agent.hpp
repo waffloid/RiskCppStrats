@@ -16,8 +16,6 @@ public:
                std::vector<float>& scores_out,
                PlayerCommands& direct_commands_out) override;
 
-    float beta() const override { return config_.expansion_beta; }
-
 private:
     ModelConfig config_;
 };

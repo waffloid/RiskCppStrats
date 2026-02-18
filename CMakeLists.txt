@@ -26,17 +26,19 @@ add_library(crisky_engine STATIC
     src/ai/models/v1_knapsack_hybrid.cpp
     src/ai/models/v2_knapsack.cpp
     src/ai/models/v3.cpp
+    src/ai/models/v4.cpp
     src/ai/distribution.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
     src/systems/transport/potential_solvers.cpp
     src/systems/ordering/ordering_solvers.cpp
+    src/observability/metrics_collector.cpp
 )
 target_include_directories(crisky_engine PUBLIC src/)
 
 # --- Headless binary ---
 add_executable(crisky_headless src/apps/headless/main.cpp)
-target_link_libraries(crisky_headless PRIVATE crisky_engine)
+target_link_libraries(crisky_headless PRIVATE crisky_engine crisky_graph_algo)
 
 # --- RayLib (FetchContent) ---
 include(FetchContent)
@@ -59,6 +61,20 @@ FetchContent_Declare(rlimgui
     GIT_REPOSITORY https://github.com/raylib-extras/rlImGui.git
     GIT_TAG main
 )
+
+# --- Eigen (header-only, for spectral/SDP solvers) ---
+# Populated manually to avoid target conflicts with Eigen's CMakeLists.txt.
+FetchContent_Declare(eigen
+    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+    GIT_TAG 3.4.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_GetProperties(eigen)
+if(NOT eigen_POPULATED)
+    FetchContent_Populate(eigen)
+endif()
+add_library(Eigen3::Eigen INTERFACE IMPORTED)
+target_include_directories(Eigen3::Eigen INTERFACE ${eigen_SOURCE_DIR})
 
 FetchContent_GetProperties(imgui)
 if(NOT imgui_POPULATED)
@@ -92,7 +108,7 @@ target_include_directories(imgui_lib PUBLIC
 )
 target_link_libraries(imgui_lib PUBLIC raylib)
 
-# --- Viz library (panels, overlays, ring_buffer — links imgui + engine) ---
+# --- Viz library (panels, overlays, ring_buffer, renderer, camera, viz_app — links imgui + engine) ---
 add_library(crisky_viz STATIC
     src/viz/panel_host.cpp
     src/viz/panels/time_series_chart.cpp
@@ -102,6 +118,9 @@ add_library(crisky_viz STATIC
     src/viz/panels/playback_controls.cpp
     src/viz/overlays/node_heatmap.cpp
     src/viz/overlays/gradient_arrows.cpp
+    src/viz/viz_app.cpp
+    src/renderer/renderer.cpp
+    src/renderer/camera.cpp
 )
 target_include_directories(crisky_viz PUBLIC src/)
 target_link_libraries(crisky_viz PUBLIC imgui_lib crisky_engine)
@@ -110,18 +129,14 @@ target_link_libraries(crisky_viz PUBLIC imgui_lib crisky_engine)
 add_executable(crisky_game
     src/apps/game/main.cpp
     src/ui/human_player.cpp
-    src/renderer/renderer.cpp
-    src/renderer/camera.cpp
 )
-target_link_libraries(crisky_game PRIVATE crisky_engine crisky_viz)
+target_link_libraries(crisky_game PRIVATE crisky_viz crisky_graph_algo)
 
 # --- Screenshot tool ---
 add_executable(crisky_screenshots
     src/apps/screenshots/main.cpp
-    src/renderer/renderer.cpp
-    src/renderer/camera.cpp
 )
-target_link_libraries(crisky_screenshots PRIVATE crisky_engine raylib)
+target_link_libraries(crisky_screenshots PRIVATE crisky_viz)
 
 # --- GA tuning binary ---
 add_executable(ga_tune src/apps/ga_tune/main.cpp)
@@ -149,6 +164,15 @@ target_link_libraries(test_collision_invariant PRIVATE crisky_engine)
 add_executable(test_scenarios tests/test_scenarios.cpp)
 target_link_libraries(test_scenarios PRIVATE crisky_engine)
 
+# --- Graph algorithms library (max-cut / QUBO solvers — uses Eigen, no RayLib) ---
+add_library(crisky_graph_algo STATIC
+    src/systems/graph_algo/maxcut_solvers.cpp
+    src/systems/graph_algo/qubo_objectives.cpp
+    src/ai/models/v5_qubo.cpp
+)
+target_include_directories(crisky_graph_algo PUBLIC src/)
+target_link_libraries(crisky_graph_algo PUBLIC crisky_engine Eigen3::Eigen)
+
 # --- Systems library (solvers, types, data sink — no RayLib) ---
 # Solver .cpp files are compiled into crisky_engine (Option A) to avoid
 # circular deps with player code.  data_sink + loss_functions live here.
@@ -167,7 +191,7 @@ add_library(crisky_gyms STATIC
     src/gyms/ordering_gym.cpp
     src/gyms/projections.cpp
 )
-target_link_libraries(crisky_gyms PUBLIC crisky_systems)
+target_link_libraries(crisky_gyms PUBLIC crisky_systems crisky_graph_algo)
 target_include_directories(crisky_gyms PUBLIC src/)
 
 # --- Gym headless binaries ---
@@ -180,6 +204,9 @@ target_link_libraries(gym_combat PRIVATE crisky_gyms)
 add_executable(gym_transport src/apps/gyms/gym_transport.cpp)
 target_link_libraries(gym_transport PRIVATE crisky_gyms)
 
+add_executable(gym_transport_diag src/apps/gyms/gym_transport_diag.cpp)
+target_link_libraries(gym_transport_diag PRIVATE crisky_gyms)
+
 add_executable(gym_ordering src/apps/gyms/gym_ordering.cpp)
 target_link_libraries(gym_ordering PRIVATE crisky_gyms)
 
@@ -189,24 +216,18 @@ target_link_libraries(gym_composed PRIVATE crisky_gyms)
 # --- Combat gym viz (head mode with ImGui panels) ---
 add_executable(gym_combat_viz
     src/apps/gyms/gym_combat_viz.cpp
-    src/renderer/renderer.cpp
-    src/renderer/camera.cpp
 )
 target_link_libraries(gym_combat_viz PRIVATE crisky_gyms crisky_viz)
 
 # --- Transport gym viz (head mode with ImGui panels) ---
 add_executable(gym_transport_viz
     src/apps/gyms/gym_transport_viz.cpp
-    src/renderer/renderer.cpp
-    src/renderer/camera.cpp
 )
 target_link_libraries(gym_transport_viz PRIVATE crisky_gyms crisky_viz)
 
 # --- Economy gym viz (head mode with ImGui panels + MCMC trace) ---
 add_executable(gym_economy_viz
     src/apps/gyms/gym_economy_viz.cpp
-    src/renderer/renderer.cpp
-    src/renderer/camera.cpp
 )
 target_link_libraries(gym_economy_viz PRIVATE crisky_gyms crisky_viz)
 
@@ -229,6 +250,18 @@ target_link_libraries(test_ordering_gym PRIVATE crisky_gyms)
 
 add_executable(test_distribution tests/test_distribution.cpp)
 target_link_libraries(test_distribution PRIVATE crisky_engine)
+
+# --- Max-cut gym headless ---
+add_executable(gym_maxcut src/apps/gyms/gym_maxcut.cpp)
+target_link_libraries(gym_maxcut PRIVATE crisky_gyms)
+
+# --- Max-cut gym viz ---
+add_executable(gym_maxcut_viz src/apps/gyms/gym_maxcut_viz.cpp)
+target_link_libraries(gym_maxcut_viz PRIVATE crisky_gyms crisky_viz)
+
+# --- Max-cut tests ---
+add_executable(test_maxcut tests/test_maxcut.cpp)
+target_link_libraries(test_maxcut PRIVATE crisky_gyms)
 
 # --- Viz test binary ---
 add_executable(viz_test src/apps/viz_test/main.cpp)

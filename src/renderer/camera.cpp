@@ -38,22 +38,43 @@ void Camera2D_Custom::fit_to_graph(const Graph& graph, int screen_w, int screen_
     offset_ = {cx, cy};
 }
 
-void Camera2D_Custom::update() {
-    // Zoom: scroll wheel toward mouse, I/O keys toward center
-    float wheel = GetMouseWheelMove();
-    if (wheel != 0.0f) {
-        Vector2 mouse_screen = GetMousePosition();
-        Vector2 mouse_world = screen_to_world(mouse_screen);
+void Camera2D_Custom::update(bool skip_mouse, bool skip_keyboard) {
+    if (!skip_mouse) {
+        // Zoom: scroll wheel toward mouse
+        float wheel = GetMouseWheelMove();
+        if (wheel != 0.0f) {
+            Vector2 mouse_screen = GetMousePosition();
+            Vector2 mouse_world = screen_to_world(mouse_screen);
 
-        float factor = (wheel > 0) ? 1.1f : 1.0f / 1.1f;
-        zoom_ *= factor;
-        zoom_ = std::clamp(zoom_, 0.1f, 100.0f);
+            float factor = (wheel > 0) ? 1.1f : 1.0f / 1.1f;
+            zoom_ *= factor;
+            zoom_ = std::clamp(zoom_, 0.1f, 100.0f);
 
-        Vector2 new_world = screen_to_world(mouse_screen);
-        offset_.x -= (new_world.x - mouse_world.x);
-        offset_.y -= (new_world.y - mouse_world.y);
+            Vector2 new_world = screen_to_world(mouse_screen);
+            offset_.x -= (new_world.x - mouse_world.x);
+            offset_.y -= (new_world.y - mouse_world.y);
+        }
+
+        // Middle-click drag pan
+        if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
+            dragging_ = true;
+            drag_start_ = GetMousePosition();
+            offset_at_drag_start_ = offset_;
+        }
+        if (IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE)) {
+            dragging_ = false;
+        }
+        if (dragging_) {
+            Vector2 mouse = GetMousePosition();
+            float dx = mouse.x - drag_start_.x;
+            float dy = mouse.y - drag_start_.y;
+            offset_.x = offset_at_drag_start_.x - dx / zoom_;
+            offset_.y = offset_at_drag_start_.y - dy / zoom_;
+        }
     }
-    {
+
+    if (!skip_keyboard) {
+        // I/O zoom keys
         float key_zoom = 0.0f;
         if (IsKeyDown(KEY_I)) key_zoom += 0.5f;
         if (IsKeyDown(KEY_O)) key_zoom -= 0.5f;
@@ -62,47 +83,30 @@ void Camera2D_Custom::update() {
             zoom_ *= factor;
             zoom_ = std::clamp(zoom_, 0.1f, 100.0f);
         }
-    }
 
-    // Middle-click drag pan
-    if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
-        dragging_ = true;
-        drag_start_ = GetMousePosition();
-        offset_at_drag_start_ = offset_;
-    }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE)) {
-        dragging_ = false;
-    }
-    if (dragging_) {
-        Vector2 mouse = GetMousePosition();
-        float dx = mouse.x - drag_start_.x;
-        float dy = mouse.y - drag_start_.y;
-        offset_.x = offset_at_drag_start_.x - dx / zoom_;
-        offset_.y = offset_at_drag_start_.y - dy / zoom_;
-    }
+        // WASD pan (aligned with camera rotation)
+        float pan_speed = 75.0f;
+        float dt = GetFrameTime();
+        float sx = 0.0f, sy = 0.0f;  // screen-space direction
+        if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    sy -= 1.0f;
+        if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))   sy += 1.0f;
+        if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))   sx -= 1.0f;
+        if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))  sx += 1.0f;
+        if (sx != 0.0f || sy != 0.0f) {
+            float rad = -rotation_ * (std::numbers::pi_v<float> / 180.0f);
+            float cos_r = std::cos(rad);
+            float sin_r = std::sin(rad);
+            float wx = sx * cos_r - sy * sin_r;
+            float wy = sx * sin_r + sy * cos_r;
+            offset_.x += wx * pan_speed * dt;
+            offset_.y += wy * pan_speed * dt;
+        }
 
-    // WASD pan (aligned with camera rotation)
-    float pan_speed = 75.0f;
-    float dt = GetFrameTime();
-    float sx = 0.0f, sy = 0.0f;  // screen-space direction
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    sy -= 1.0f;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))   sy += 1.0f;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))   sx -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))  sx += 1.0f;
-    if (sx != 0.0f || sy != 0.0f) {
-        float rad = -rotation_ * (std::numbers::pi_v<float> / 180.0f);
-        float cos_r = std::cos(rad);
-        float sin_r = std::sin(rad);
-        float wx = sx * cos_r - sy * sin_r;
-        float wy = sx * sin_r + sy * cos_r;
-        offset_.x += wx * pan_speed * dt;
-        offset_.y += wy * pan_speed * dt;
+        // K/L rotation
+        float rot_speed = 90.0f; // degrees per second
+        if (IsKeyDown(KEY_K)) rotation_ += rot_speed * dt;
+        if (IsKeyDown(KEY_L)) rotation_ -= rot_speed * dt;
     }
-
-    // K/L rotation
-    float rot_speed = 90.0f; // degrees per second
-    if (IsKeyDown(KEY_K)) rotation_ += rot_speed * dt;
-    if (IsKeyDown(KEY_L)) rotation_ -= rot_speed * dt;
 }
 
 Vector2 Camera2D_Custom::world_to_screen(Vector2 world) const {

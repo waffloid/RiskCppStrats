@@ -4,23 +4,21 @@
 #include <string>
 #include <vector>
 
-// Snapshot of one sub-agent's output (pre- and post-softmax).
+// Snapshot of one sub-agent's raw output (before combining).
 struct SubAgentSnapshot {
     std::string name;
     float weight = 0.0f;
-    float beta = 1.0f;
-    std::vector<float> raw_scores;     // pre-softmax
-    std::vector<float> distribution;   // post-softmax
+    std::vector<float> raw_scores;     // pre-combine raw scores
 };
 
 // Full snapshot of the distribution pipeline for one tick.
-// Populated by DistributionAIPlayer when metrics_enabled_.
+// Pipeline: weighted sum of raw scores → softmax(combined, global_beta) → EMA → potential.
 struct AIDecisionSnapshot {
     std::vector<SubAgentSnapshot> sub_agents;
-    std::vector<float> pooled;         // weighted pool (pre-EMA)
-    std::vector<float> smoothed;       // post-EMA (final distribution)
-    std::vector<float> gradient;       // deficit signal
-    std::vector<int> current_troops;   // per-node troop count for this player
+    std::vector<float> combined_scores; // weighted sum of raw scores (pre-softmax)
+    std::vector<float> smoothed;        // post-EMA (final distribution)
+    std::vector<float> gradient;        // deficit signal (potential)
+    std::vector<int> current_troops;    // per-node troop count for this player
     int total_owned_troops = 0;
 };
 

@@ -283,6 +283,107 @@ BuildPlan economy_solver_branch_bound(
     return BuildPlan{};
 }
 
+// ── Incremental MCMC stepper ──────────────────────────────────
+
+MCMCStepper::MCMCStepper(const Graph& graph,
+                         const std::vector<NodeData>& nodes,
+                         int player_id,
+                         const GameConfig& config,
+                         int total_iterations,
+                         float initial_temp)
+    : graph_(&graph), player_id_(player_id), config_(config),
+      total_iters_(total_iterations), initial_temp_(initial_temp),
+      initial_nodes_(nodes) {
+
+    int n = graph.num_nodes();
+    for (int i = 0; i < n; i++) {
+        if (nodes[i].owner == player_id && nodes[i].state != NodeState::CAPITAL) {
+            candidates_.push_back(i);
+        }
+    }
+    init_warm_start();
+}
+
+void MCMCStepper::init_warm_start() {
+    work_ = initial_nodes_;
+    BuildPlan greedy = economy_solver_greedy(*graph_, initial_nodes_, player_id_, config_);
+    for (const auto& step : greedy.steps) {
+        if (step.node_idx >= 0 && step.node_idx < graph_->num_nodes()) {
+            work_[step.node_idx].state = step.structure;
+        }
+    }
+    current_prod_ = compute_production_rate(*graph_, work_, player_id_, config_);
+    best_prod_ = current_prod_;
+    best_state_ = work_;
+    iter_ = 0;
+    rng_.seed(42);
+    trace_ = MCMCTrace{};
+    trace_.initial_production = current_prod_;
+    trace_.iterations = total_iters_;
+}
+
+void MCMCStepper::reset(int total_iterations, float initial_temp) {
+    total_iters_ = total_iterations;
+    initial_temp_ = initial_temp;
+    init_warm_start();
+}
+
+bool MCMCStepper::step(int n_iters) {
+    if (candidates_.empty()) return false;
+
+    std::uniform_int_distribution<int> node_dist(0, static_cast<int>(candidates_.size()) - 1);
+    std::uniform_real_distribution<float> accept_dist(0.0f, 1.0f);
+    const NodeState options[] = {NodeState::DEFAULT, NodeState::FACTORY, NodeState::POWERPLANT};
+    std::uniform_int_distribution<int> state_dist(0, 2);
+
+    int end = iter_ + n_iters;
+    for (; iter_ < end; iter_++) {
+        // Exponential cooling: temp = initial * decay^iter, asymptotes to min_temp
+        float temp = initial_temp_ * std::exp(-3.0f * static_cast<float>(iter_) / static_cast<float>(std::max(1, total_iters_)));
+        temp = std::max(temp, 0.01f);
+
+        int ci = node_dist(rng_);
+        int node_idx = candidates_[ci];
+        NodeState old_state = work_[node_idx].state;
+        NodeState new_state = options[state_dist(rng_)];
+        if (new_state == old_state) {
+            trace_.production_per_iter.push_back(current_prod_);
+            trace_.best_production_per_iter.push_back(best_prod_);
+            continue;
+        }
+
+        work_[node_idx].state = new_state;
+        float new_prod = compute_production_rate(*graph_, work_, player_id_, config_);
+
+        float delta = new_prod - current_prod_;
+        bool accept = false;
+        if (delta > 0.0f) {
+            accept = true;
+            trace_.improvements++;
+        } else if (temp > 0.01f) {
+            float prob = std::exp(delta / temp);
+            accept = accept_dist(rng_) < prob;
+        }
+
+        if (accept) {
+            current_prod_ = new_prod;
+            trace_.accepted++;
+            if (current_prod_ > best_prod_) {
+                best_prod_ = current_prod_;
+                best_state_ = work_;
+            }
+        } else {
+            work_[node_idx].state = old_state;
+        }
+
+        trace_.production_per_iter.push_back(current_prod_);
+        trace_.best_production_per_iter.push_back(best_prod_);
+    }
+
+    trace_.final_production = best_prod_;
+    return true;
+}
+
 // ── Utility ────────────────────────────────────────────────────
 
 float compute_production_rate(
@@ -306,16 +407,15 @@ float compute_production_rate(
             continue;  // only producers count
         }
 
-        // Check if powered by adjacent powerplant.
-        bool powered = false;
+        // Each adjacent powerplant adds its bonus (stacks)
+        int pp_count = 0;
         for (int nbr : graph.neighbors(i)) {
             if (nodes[nbr].state == NodeState::POWERPLANT && nodes[nbr].owner == player_id) {
-                powered = true;
-                break;
+                pp_count++;
             }
         }
 
-        production += base + (powered ? static_cast<float>(config.powerplant_bonus) : 0.0f);
+        production += base + static_cast<float>(pp_count * config.powerplant_bonus);
     }
 
     return production;
@@ -327,17 +427,25 @@ float compute_theoretical_max_production(
     int player_id,
     const GameConfig& config) {
 
+    // Relaxed upper bound: assume every non-capital owned node is a factory
+    // AND every producer has all its neighbors as powerplants. This is
+    // infeasible (powerplants take factory slots) but provides a valid
+    // upper bound. The exact optimum is NP-hard (MAX CUT variant).
     float max_prod = 0.0f;
 
     for (int i = 0; i < graph.num_nodes(); i++) {
-        const auto& nd = nodes[i];
-        if (nd.owner != player_id) continue;
+        if (nodes[i].owner != player_id) continue;
 
-        if (nd.state == NodeState::CAPITAL) {
-            max_prod += static_cast<float>(config.capital_troops_per_tick + config.powerplant_bonus);
-        } else if (nd.state == NodeState::FACTORY) {
-            max_prod += static_cast<float>(config.factory_troops_per_tick + config.powerplant_bonus);
+        float base = 0.0f;
+        if (nodes[i].state == NodeState::CAPITAL) {
+            base = static_cast<float>(config.capital_troops_per_tick);
+        } else {
+            base = static_cast<float>(config.factory_troops_per_tick);
         }
+
+        // Upper bound: every neighbor could be a PP
+        int max_pp = graph.degree(i);
+        max_prod += base + static_cast<float>(max_pp * config.powerplant_bonus);
     }
 
     return max_prod;

@@ -22,9 +22,15 @@
 
 #include "ai/players/passive_player.hpp"
 
+// QUBO model registration (defined in crisky_graph_algo)
+extern void register_v5_qubo();
+
+#include "observability/metrics_collector.hpp"
+#include "viz/imgui_theme.hpp"
 #include "viz/panel_host.hpp"
 #include "viz/ring_buffer.hpp"
 #include "viz/panels/time_series_chart.hpp"
+#include "viz/panels/bar_chart.hpp"
 #include "viz/panels/graph_heatmap.hpp"
 #include "viz/panels/stats_table.hpp"
 #include "viz/panels/playback_controls.hpp"
@@ -148,6 +154,8 @@ static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int 
 }
 
 int main(int argc, char* argv[]) {
+    register_v5_qubo();
+
     uint64_t seed = 42;
     if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));
 
@@ -232,8 +240,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::vector<int> capitals;
-        for (int i = 0; i < num_players; i++) capitals.push_back(i);
+        auto capitals = test_graph.pick_spaced_capitals(num_players);
         n_real = num_players;
 
         game_ptr = std::make_unique<Game>(config, capitals, seed);
@@ -275,69 +282,132 @@ int main(int argc, char* argv[]) {
     ImPlot::CreateContext();
     ImGuiIO& imgui_io = ImGui::GetIO();
     imgui_io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    bool show_debug = false;  // toggle with D key
+    bool show_debug = false;  // toggle with F1 key
 
-    // Enable AI metrics for DistributionAIPlayers
-    DistributionAIPlayer* tracked_ai = nullptr;
+    // Enable AI metrics for all DistributionAIPlayers; track one for viz
+    std::vector<std::pair<int, DistributionAIPlayer*>> ai_players; // (player_id, ptr)
     for (int i = 0; i < n_real; i++) {
         if (auto* dp = dynamic_cast<DistributionAIPlayer*>(ais[i].get())) {
             dp->set_metrics_enabled(true);
-            if (!tracked_ai) tracked_ai = dp;  // track first AI player for viz
+            ai_players.push_back({i, dp});
         }
     }
+    int tracked_ai_idx = 0; // index into ai_players
+    DistributionAIPlayer* tracked_ai = ai_players.empty() ? nullptr : ai_players[0].second;
+    int tracked_player_id = ai_players.empty() ? -1 : ai_players[0].first;
+
+    // MetricsCollector for economy/combat/territory stats
+    MetricsCollector metrics(n_real);
 
     // Tick counter (declared early so panel lambdas can capture it)
     int tick_count = 0;
 
     // Ring buffers for per-player time-series data
-    RingBuffer<float> buf_troops_total(4096);
     std::vector<RingBuffer<float>> buf_troops(n_real, RingBuffer<float>(4096));
     std::vector<RingBuffer<float>> buf_nodes(n_real, RingBuffer<float>(4096));
+    std::vector<RingBuffer<float>> buf_production(n_real, RingBuffer<float>(4096));
+    std::vector<RingBuffer<float>> buf_factories(n_real, RingBuffer<float>(4096));
+    std::vector<RingBuffer<float>> buf_kd_ratio(n_real, RingBuffer<float>(4096));
 
     // Panel host
     PanelHost panel_host;
 
-    // Territory chart
-    auto territory_chart = std::make_unique<TimeSeriesChart>("Territory", "Tick", "Nodes");
-    for (int p = 0; p < std::min(n_real, 4); p++) {
-        unsigned int colors[] = {
-            IM_COL32(100, 149, 237, 255), IM_COL32(255, 99, 71, 255),
-            IM_COL32(50, 205, 50, 255), IM_COL32(255, 215, 0, 255)
+    // Per-player time-series charts (standalone windows — dockable independently)
+    std::vector<TimeSeriesChart*> player_charts;
+    {
+        const auto& scheme = COLOR_SCHEMES[scheme_idx];
+        auto make_chart = [&](const char* name, const char* y_label,
+                              std::vector<RingBuffer<float>>& bufs) {
+            auto chart = std::make_unique<TimeSeriesChart>(name, "Tick", y_label);
+            for (int p = 0; p < std::min(n_real, 4); p++) {
+                unsigned int c = IM_COL32(scheme.player_colors[p].r, scheme.player_colors[p].g,
+                                          scheme.player_colors[p].b, scheme.player_colors[p].a);
+                char label[16];
+                std::snprintf(label, sizeof(label), "P%d", p);
+                chart->add_series(label, c, &bufs[p]);
+            }
+            player_charts.push_back(chart.get());
+            return chart;
         };
-        char label[16];
-        std::snprintf(label, sizeof(label), "P%d", p);
-        territory_chart->add_series(label, colors[p], &buf_nodes[p]);
+        panel_host.add(make_chart("Territory", "Nodes", buf_nodes));
+        panel_host.add(make_chart("Troops", "Count", buf_troops));
+        panel_host.add(make_chart("Production", "Troops/tick", buf_production));
+        panel_host.add(make_chart("Factories", "Count", buf_factories));
+        panel_host.add(make_chart("K/D Ratio", "Ratio", buf_kd_ratio));
     }
-    panel_host.add(std::move(territory_chart));
 
-    // Troops chart
-    auto troops_chart = std::make_unique<TimeSeriesChart>("Troops", "Tick", "Count");
-    for (int p = 0; p < std::min(n_real, 4); p++) {
-        unsigned int colors[] = {
-            IM_COL32(100, 149, 237, 255), IM_COL32(255, 99, 71, 255),
-            IM_COL32(50, 205, 50, 255), IM_COL32(255, 215, 0, 255)
-        };
-        char label[16];
-        std::snprintf(label, sizeof(label), "P%d", p);
-        troops_chart->add_series(label, colors[p], &buf_troops[p]);
-    }
-    panel_host.add(std::move(troops_chart));
-
-    // Distribution & gradient heatmaps (if we have a tracked AI)
+    // Heatmaps and AI decision panels (all dockable)
     if (tracked_ai) {
         panel_host.add(std::make_unique<GraphHeatmap>(
-            "Distribution", &game.graph(),
+            "P0 Distribution (troop target %)", &game.graph(),
             [&]() -> std::vector<float> {
                 return tracked_ai->decision_snapshot().smoothed;
             }
         ));
         panel_host.add(std::make_unique<GraphHeatmap>(
-            "Gradient", &game.graph(),
+            "P0 Potential (deficit signal)", &game.graph(),
             [&]() -> std::vector<float> {
                 return tracked_ai->decision_snapshot().gradient;
             }
         ));
+        panel_host.add(std::make_unique<GraphHeatmap>(
+            "P0 Combined (pre-softmax)", &game.graph(),
+            [&]() -> std::vector<float> {
+                return tracked_ai->decision_snapshot().combined_scores;
+            }
+        ));
+
+        // Per sub-agent raw score heatmaps
+        for (int sa_idx = 0; sa_idx < 3; sa_idx++) {
+            const char* names[] = {"P0 Economy Scores", "P0 Expansion Scores", "P0 War Scores"};
+            panel_host.add(std::make_unique<GraphHeatmap>(
+                names[sa_idx], &game.graph(),
+                [&, sa_idx]() -> std::vector<float> {
+                    auto& sa = tracked_ai->decision_snapshot().sub_agents;
+                    if (sa_idx < static_cast<int>(sa.size()))
+                        return sa[sa_idx].raw_scores;
+                    return {};
+                }
+            ));
+        }
+
+        // Sub-agent weight bar chart
+        panel_host.add(std::make_unique<BarChart>(
+            "Sub-agent Weights", "Weight",
+            [&]() {
+                std::vector<std::pair<std::string, float>> bars;
+                for (auto& sa : tracked_ai->decision_snapshot().sub_agents)
+                    bars.push_back({sa.name, sa.weight});
+                return bars;
+            }
+        ));
+
+        // Per-node troop distribution bar chart (edge-interpolated)
+        panel_host.add(std::make_unique<BarChart>(
+            "P0 Troop Distribution", "Troops",
+            [&]() {
+                std::vector<std::pair<std::string, float>> bars;
+                auto t = game.effective_troops(tracked_player_id);
+                for (int i = 0; i < static_cast<int>(t.size()); i++) {
+                    if (game.node_data()[i].owner == tracked_player_id)
+                        bars.push_back({std::to_string(i), t[i]});
+                }
+                return bars;
+            }
+        ));
     }
+
+    // Node index gradient (verifies spatial reordering: should sweep smoothly)
+    panel_host.add(std::make_unique<GraphHeatmap>(
+        "Node Index Gradient", &game.graph(),
+        [&]() -> std::vector<float> {
+            int n = game.graph().num_nodes();
+            std::vector<float> v(n);
+            float denom = (n > 1) ? static_cast<float>(n - 1) : 1.0f;
+            for (int i = 0; i < n; i++) v[i] = static_cast<float>(i) / denom;
+            return v;
+        }
+    ));
 
     // Stats table
     panel_host.add(std::make_unique<StatsTable>("Game Stats", [&]() {
@@ -411,7 +481,7 @@ int main(int argc, char* argv[]) {
     while (!WindowShouldClose()) {
         screen_w = GetScreenWidth();
         screen_h = GetScreenHeight();
-        camera.update();
+        camera.update(imgui_io.WantCaptureMouse, imgui_io.WantCaptureKeyboard);
 
         // Speed adjustment: +/- keys
         if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
@@ -440,7 +510,7 @@ int main(int argc, char* argv[]) {
         if (IsKeyPressed(KEY_Z)) {
             renderer.set_zen_mode(!renderer.zen_mode());
         }
-        if (IsKeyPressed(KEY_D)) {
+        if (IsKeyPressed(KEY_F1)) {
             show_debug = !show_debug;
         }
         if (IsKeyPressed(KEY_H) && heatmap_overlay) {
@@ -448,6 +518,12 @@ int main(int argc, char* argv[]) {
         }
         if (IsKeyPressed(KEY_G) && gradient_overlay) {
             gradient_overlay->visible = !gradient_overlay->visible;
+        }
+        // TAB: cycle which AI player the debug panels inspect
+        if (IsKeyPressed(KEY_TAB) && ai_players.size() > 1) {
+            tracked_ai_idx = (tracked_ai_idx + 1) % static_cast<int>(ai_players.size());
+            tracked_ai = ai_players[tracked_ai_idx].second;
+            tracked_player_id = ai_players[tracked_ai_idx].first;
         }
 
         if (scheme_notify_timer > 0.0f) {
@@ -477,15 +553,14 @@ int main(int argc, char* argv[]) {
 
             // Update ring buffers for debug viz
             if (show_debug) {
+                metrics.collect(game, tick_count);
                 for (int p = 0; p < n_real; p++) {
-                    int nodes_count = 0, troops_count = 0;
-                    for (int i = 0; i < game.graph().num_nodes(); i++) {
-                        if (game.node_data()[i].owner == p) nodes_count++;
-                        if (p < static_cast<int>(game.node_data()[i].troops.size()))
-                            troops_count += game.node_data()[i].troops[p];
-                    }
-                    buf_nodes[p].push(static_cast<float>(nodes_count));
-                    buf_troops[p].push(static_cast<float>(troops_count));
+                    const auto& s = metrics.snapshot(p);
+                    buf_nodes[p].push(static_cast<float>(s.nodes_owned));
+                    buf_troops[p].push(static_cast<float>(s.total_troops));
+                    buf_production[p].push(static_cast<float>(s.production_per_tick));
+                    buf_factories[p].push(static_cast<float>(s.factories_owned));
+                    buf_kd_ratio[p].push(s.kd_ratio);
                 }
             }
         }
@@ -529,6 +604,11 @@ int main(int argc, char* argv[]) {
                  renderer.zen_mode() ? "  [ZEN]" : "",
                  COLOR_SCHEMES[scheme_idx].name);
         DrawText(hud, 10, 10, 16, WHITE);
+        if (show_debug && tracked_ai) {
+            char dbg[64];
+            snprintf(dbg, sizeof(dbg), "Inspecting: P%d  [TAB to cycle]", tracked_player_id);
+            DrawText(dbg, 10, 28, 14, LIGHTGRAY);
+        }
 
         if (game.is_game_over()) {
             DrawText("GAME OVER", screen_w / 2 - 60, screen_h / 2, 24, WHITE);
@@ -547,12 +627,23 @@ int main(int argc, char* argv[]) {
         // Controls help
         DrawText("CLICK: select  SHIFT+CLICK: add/toggle  ALT+CLICK: deselect  DRAG: circle select  SHIFT/ALT+DRAG: add/remove",
                  10, screen_h - 30, 10, DARKGRAY);
-        DrawText("QERF: send troops  1-4: build  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes  Z: zen  D: debug  H: heatmap  G: gradient",
+        DrawText("QERF: send troops  1-4: build  +/-: speed  Space: pause  WASD: pan  I/O: zoom  K/L: rotate  [/]: themes  Z: zen  F1: debug  H: heatmap  G: gradient  TAB: cycle AI",
                  10, screen_h - 15, 10, DARKGRAY);
 
         // ImGui debug panels
+        apply_imgui_theme(COLOR_SCHEMES[scheme_idx]);
         rlImGuiBegin();
         if (show_debug) {
+            // Sync chart colors with current theme
+            {
+                const auto& s = COLOR_SCHEMES[scheme_idx];
+                for (auto* chart : player_charts) {
+                    for (int p = 0; p < std::min(n_real, 4); p++) {
+                        chart->set_series_color(p, IM_COL32(s.player_colors[p].r,
+                            s.player_colors[p].g, s.player_colors[p].b, s.player_colors[p].a));
+                    }
+                }
+            }
             ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
                                          ImGuiDockNodeFlags_PassthruCentralNode);
             panel_host.draw();

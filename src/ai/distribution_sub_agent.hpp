@@ -21,9 +21,6 @@ public:
                        std::vector<float>& scores_out,
                        PlayerCommands& direct_commands_out) = 0;
 
-    // Softmax temperature. Higher β = more peaked (troops concentrate at top nodes).
-    virtual float beta() const { return 1.0f; }
-
     // Optional metrics output pointer (set by orchestrator before calling score).
     AIMetricsSnapshot* metrics_out = nullptr;
 };

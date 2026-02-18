@@ -3,10 +3,15 @@
 
 #include "engine/graph.hpp"
 #include "engine/game_config.hpp"
+#include "systems/transport/transport_solvers.hpp"
+#include "systems/transport/loss_functions.hpp"
 
 #include <optional>
+#include <random>
 #include <string>
 #include <vector>
+
+class Game;
 
 // Named transport scenario: graph + initial/target troop distributions.
 struct TransportPreset {
@@ -35,6 +40,29 @@ struct TransportGymResult {
 
     std::vector<TransportTickData> ticks;
 };
+
+// Per-tick simulation result — shared between headless and viz.
+struct TransportTickResult {
+    float loss = 0.0f;
+    int in_transit = 0;
+    std::vector<int> current;       // on-node + in-transit at origin
+    std::vector<float> deficit;
+    std::vector<float> gradient;    // Poisson solution
+};
+
+// Advance one tick of transport simulation. Counts troops (on-node + in-transit
+// at origin for idempotency), solves Poisson for gradient, generates and caps
+// commands, applies game.tick(). Returns per-tick state for metrics/viz.
+// warm_phi is the Poisson solution from the previous tick (warm start for GS).
+// Pass an empty vector on the first tick; it will be resized and populated.
+TransportTickResult transport_gym_tick(
+    Game& game,
+    const TransportPreset& preset,
+    const TransportSolver& solver,
+    const LossFunction& loss_fn,
+    std::mt19937& rng,
+    std::vector<float>& warm_phi,
+    float dt = 1.0f);
 
 // Run a transport gym simulation.
 // Single-player game with zero production/combat. Measures how quickly

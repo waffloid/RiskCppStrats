@@ -564,9 +564,7 @@ void Renderer::draw_troop_groups(const Game& game, const Camera2D_Custom& camera
 
                 Vector2 sp = camera.world_to_screen(world_pos);
 
-                float frac = std::log2f(static_cast<float>(group.count + 1)) / 12.0f;
-                frac = std::clamp(frac, 0.0f, 1.0f);
-                float dot_r = (rc_.troop_dot_min_radius + frac * (rc_.troop_dot_max_radius - rc_.troop_dot_min_radius)) * scale;
+                float dot_r = (rc_.troop_dot_min_radius + std::sqrt(static_cast<float>(group.count)) / 32.0f * (rc_.troop_dot_max_radius - rc_.troop_dot_min_radius)) * scale;
 
                 float sox = rc_.shadow_offset_x;
                 float soy = rc_.shadow_offset_y;
