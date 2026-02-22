@@ -232,13 +232,40 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
             }
         }
 
+        // Compute per-node production rate (troops/tick) for saturation tranches
+        std::vector<float> prod_rate(n, 0.0f);
+        for (int i = 0; i < n; i++) {
+            if (nodes_data[i].owner != player_id) continue;
+            int base = 0;
+            if (nodes_data[i].state == NodeState::CAPITAL)
+                base = cfg.capital_troops_per_tick;
+            else if (nodes_data[i].state == NodeState::FACTORY)
+                base = cfg.factory_troops_per_tick;
+            if (base > 0) {
+                for (int nbr : graph.neighbors(i)) {
+                    if (nodes_data[nbr].state == NodeState::POWERPLANT &&
+                        nodes_data[nbr].owner == player_id)
+                        base += cfg.powerplant_bonus;
+                }
+            }
+            prod_rate[i] = static_cast<float>(base);
+        }
+
         // Lazy-init cached shortest paths (once per game)
         if (!cached_sp_)
             cached_sp_ = std::make_unique<ShortestPathData>(
                 compute_shortest_paths(graph));
-        // OT solve with value-weighted costs
+        // OT solve with value-weighted costs and saturation tranches
         OTSolver ot(graph, targets, *cached_sp_);
-        auto ot_cmds = ot.solve(game.node_data(), player_id, scratch_masked_, demand_value);
+        // effective_troops: include in-transit when enabled, empty otherwise
+        std::vector<float> eff_troops;
+        if (use_effective_troops_)
+            eff_troops = game.effective_troops(player_id);
+
+        auto ot_cmds = ot.solve(game.node_data(), player_id, scratch_masked_,
+                                demand_value, eff_troops, prod_rate,
+                                config_.ot_saturation_window,
+                                config_.ot_saturation_cost_scale);
         for (auto& cmd : ot_cmds) {
             if (cmd.count > 0) out.troops.push_back(cmd);
         }

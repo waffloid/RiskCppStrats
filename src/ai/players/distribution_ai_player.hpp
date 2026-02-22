@@ -53,11 +53,15 @@ public:
     // Use OT (min-cost flow) transport instead of greedy gradient-following.
     void enable_ot_transport() { use_ot_transport_ = true; }
 
+    // Use effective troops (including in-transit) for OT demand computation.
+    void enable_effective_troops() { use_effective_troops_ = true; }
+
 private:
     int player_id_;
     ModelConfig config_;
     PotentialSolver potential_solver_ = potential_deficit;
     bool use_ot_transport_ = false;
+    bool use_effective_troops_ = false;
     std::unique_ptr<ShortestPathData> cached_sp_;
     bool initialized_ = false;
 

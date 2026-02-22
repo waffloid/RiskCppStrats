@@ -36,11 +36,24 @@ public:
     // Solve min-cost transport.  Optional demand_value (per-node, size N):
     // when provided, supply→demand edge cost becomes dist / value, making
     // high-value targets cheaper to serve.  Nodes with value <= 0 are skipped.
+    //
+    // Optional effective_troops (per-node float, size N): when provided, used
+    // instead of node troops for demand computation. Includes in-transit troops
+    // so demand accounts for troops already en route, preventing overallocation.
+    //
+    // Optional production_rate (per-node, size N): when provided, producing
+    // supply nodes get future-production tranches (parallel SRC→supply edges
+    // with increasing cost).  SSP naturally prefers existing troops, then
+    // nearby future production over long-distance shipping.
     std::vector<TroopCommand> solve(
         const std::vector<NodeData>& nodes,
         int player_id,
         const std::vector<bool>& masked,
-        const std::vector<float>& demand_value = {});
+        const std::vector<float>& demand_value = {},
+        const std::vector<float>& effective_troops = {},
+        const std::vector<float>& production_rate = {},
+        int saturation_window = 500,
+        float saturation_cost_scale = 0.12f);
 
     const ShortestPathData& shortest_paths() const { return sp_; }
 

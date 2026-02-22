@@ -16,6 +16,8 @@ extern void register_v5_qubo();
 extern void register_v7();
 extern void register_v8();
 extern void register_v9();
+extern void register_v10();
+extern void register_v11();
 
 static bool json_mode = false;
 static bool diag_mode = false;
@@ -126,6 +128,8 @@ int main(int argc, char* argv[]) {
     register_v7();
     register_v8();
     register_v9();
+    register_v10();
+    register_v11();
 
     uint64_t seed = 42;
     int max_ticks = 10000;

@@ -81,18 +81,30 @@ std::vector<TroopCommand> OTSolver::solve(
     const std::vector<NodeData>& nodes,
     int player_id,
     const std::vector<bool>& masked,
-    const std::vector<float>& demand_value) {
+    const std::vector<float>& demand_value,
+    const std::vector<float>& effective_troops,
+    const std::vector<float>& production_rate,
+    int saturation_window,
+    float saturation_cost_scale) {
 
-    // Compute supply and demand
+    bool has_effective = !effective_troops.empty();
+
+    // Compute supply and demand.
+    // Supply uses node troops (only send what's physically present).
+    // Demand uses effective troops when available (includes in-transit),
+    // preventing overallocation to nodes that already have troops en route.
     std::vector<int> supply(N_, 0);
     std::vector<int> demand(N_, 0);
     for (int i = 0; i < N_; i++) {
-        int current = nodes[i].troops[player_id];
+        int current_node = nodes[i].troops[player_id];
+        int current_effective = has_effective
+            ? static_cast<int>(effective_troops[i])
+            : current_node;
         int target = target_[i];
-        if (current > target) {
-            supply[i] = current - target;
-        } else if (target > current) {
-            demand[i] = target - current;
+        if (current_node > target) {
+            supply[i] = current_node - target;
+        } else if (target > current_effective) {
+            demand[i] = target - current_effective;
         }
     }
 
@@ -111,7 +123,34 @@ std::vector<TroopCommand> OTSolver::solve(
         if (demand[i] > 0) demanders.push_back({i, demand[i]});
     }
 
-    if (suppliers.empty() || demanders.empty()) {
+    if (demanders.empty()) {
+        voronoi_.assign(N_, -1);
+        return {};
+    }
+
+    // ========================================================================
+    // Saturation tranches: add future production capacity.
+    //
+    // At-target producing nodes (surplus == 0) become new 0-supply suppliers.
+    // Each producing supplier gets parallel SRC→supply edges with increasing
+    // cost reflecting wait time for future production.
+    // ========================================================================
+    bool has_saturation = !production_rate.empty() && saturation_window > 0;
+
+    if (has_saturation) {
+        // Add at-target producing nodes as new 0-supply suppliers
+        for (int i = 0; i < N_; i++) {
+            if (masked[i]) continue;
+            if (production_rate[i] <= 0.0f) continue;
+            if (supply[i] > 0) continue;  // already a supplier
+            if (demand[i] > 0) continue;   // it's a demander
+            if (nodes[i].owner != player_id) continue;
+            // At target, has production → add as 0-supply supplier
+            suppliers.push_back({i, 0});
+        }
+    }
+
+    if (suppliers.empty()) {
         voronoi_.assign(N_, -1);
         return {};
     }
@@ -145,9 +184,39 @@ std::vector<TroopCommand> OTSolver::solve(
         adj[v].push_back({u, 0, -cost, static_cast<int>(adj[u].size()) - 1});
     };
 
-    // Source → supply nodes
+    // Source → supply nodes (tranche 0: free existing troops)
     for (int i = 0; i < S; i++) {
-        add_mcf_edge(SRC, 1 + i, suppliers[i].remaining, 0.0f);
+        if (suppliers[i].remaining > 0) {
+            add_mcf_edge(SRC, 1 + i, suppliers[i].remaining, 0.0f);
+        }
+    }
+
+    // Future production tranches
+    if (has_saturation) {
+        int total_demand = 0;
+        for (int j = 0; j < D; j++) total_demand += demanders[j].remaining;
+
+        int total_supply = 0;
+        for (int i = 0; i < S; i++) total_supply += suppliers[i].remaining;
+
+        // Add tranches until supply >= demand (or max 10 tranches to bound)
+        for (int k = 1; total_supply < total_demand && k <= 10; k++) {
+            for (int i = 0; i < S; i++) {
+                if (total_supply >= total_demand) break;
+                int node_idx = suppliers[i].idx;
+                if (production_rate[node_idx] <= 0.0f) continue;
+
+                int tranche_cap = static_cast<int>(
+                    production_rate[node_idx] * static_cast<float>(saturation_window));
+                if (tranche_cap <= 0) continue;
+
+                float tranche_cost = static_cast<float>(k) *
+                    static_cast<float>(saturation_window) * saturation_cost_scale;
+
+                add_mcf_edge(SRC, 1 + i, tranche_cap, tranche_cost);
+                total_supply += tranche_cap;
+            }
+        }
     }
     // Supply → demand edges (uncapacitated).
     // When demand_value is provided, cost = dist / value so high-value
@@ -333,7 +402,7 @@ std::vector<TroopCommand> OTSolver::solve(
         if (nodes[u].owner != player_id) continue;
         if (masked[u]) continue;
 
-        int available = nodes[u].troops[player_id];
+        int available = nodes[u].troops[player_id] - 1;  // keep at least 1
         if (available <= 0) continue;
 
         // Total desired outflow from this node

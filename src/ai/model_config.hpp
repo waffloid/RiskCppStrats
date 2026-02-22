@@ -35,6 +35,10 @@ struct ModelConfig {
     // Transport
     float transport_outflow_rate = 0.15f;
     int   transport_min_troops   = 1;
+
+    // OT saturation tranches
+    int   ot_saturation_window     = 20;     // ticks per production tranche
+    float ot_saturation_cost_scale = 0.12f;  // ticks → distance-unit conversion
 };
 
 #endif

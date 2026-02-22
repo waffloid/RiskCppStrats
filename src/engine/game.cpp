@@ -126,7 +126,7 @@ bool Game::validate_troop_send(int player_id, const TroopCommand& cmd) const {
     if (cmd.to_node < 0 || cmd.to_node >= graph_.num_nodes()) return false;
     if (cmd.count <= 0) return false;
     const NodeData& nd = node_data_[cmd.from_node];
-    if (nd.troops[player_id] < cmd.count) return false;
+    if (nd.troops[player_id] < cmd.count + 1) return false;  // must keep at least 1 troop
     return true;
 }
 

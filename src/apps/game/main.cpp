@@ -27,6 +27,8 @@ extern void register_v5_qubo();
 extern void register_v7();
 extern void register_v8();
 extern void register_v9();
+extern void register_v10();
+extern void register_v11();
 
 #include "observability/metrics_collector.hpp"
 #include "viz/imgui_theme.hpp"
@@ -161,6 +163,8 @@ int main(int argc, char* argv[]) {
     register_v7();
     register_v8();
     register_v9();
+    register_v10();
+    register_v11();
 
     uint64_t seed = 42;
     if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));
