@@ -84,11 +84,11 @@ QUBOEconomyInstance qubo_objective_production(
     //   = const + (-bonus*base/2) * x_i * x_j
     //   → quadratic term: Q[i][j] += -bonus*base/2
     //
-    // But also the capital contributes adjacency bonuses to powerplants:
+    // But also the capital benefits from adjacent powerplants:
     //   For each neighbor j of capital that is a powerplant,
-    //   capital gets bonus * capital_rate.
-    //   capital_rate * bonus * (1-x_j)/2 = const + (-capital_rate*bonus/2)*x_j
-    //   → linear term: Q[j][j] += -capital_rate*bonus/2
+    //   capital gets +bonus production (additive, not scaled by capital_rate).
+    //   bonus * (1-x_j)/2 = const + (-bonus/2)*x_j
+    //   → linear term: Q[j][j] += -bonus/2
 
     // Linear terms: factories produce, powerplants don't
     for (int vi = 0; vi < nv; vi++) {
@@ -113,8 +113,7 @@ QUBOEconomyInstance qubo_objective_production(
 
             // Capital adjacency bonus
             if (nodes[nbr].state == NodeState::CAPITAL && nodes[nbr].owner == player_id) {
-                float cap_rate = static_cast<float>(config.capital_troops_per_tick);
-                qubo.Q[vi][vi] += -cap_rate * bonus / 2.0f;
+                qubo.Q[vi][vi] += -bonus / 2.0f;
             }
         }
     }

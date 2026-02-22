@@ -188,7 +188,12 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
                     targets[i] = min_g;
                 }
             } else if (combined[i] > 0.0f) {
-                // Expansion: need enough to beat defenders
+                // Skip nodes owned by real enemy players — war agent
+                // handles those via direct commands with feasibility checks.
+                int owner = nodes_data[i].owner;
+                if (owner >= 0 && owner < game.n_real_players()) continue;
+
+                // Expansion (neutral/unowned): need enough to beat defenders
                 int defenders = 0;
                 for (int p = 0; p < static_cast<int>(nodes_data[i].troops.size()); p++)
                     defenders += nodes_data[i].troops[p];
@@ -251,21 +256,20 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
             prod_rate[i] = static_cast<float>(base);
         }
 
-        // Lazy-init cached shortest paths (once per game)
-        if (!cached_sp_)
-            cached_sp_ = std::make_unique<ShortestPathData>(
-                compute_shortest_paths(graph));
-        // OT solve with value-weighted costs and saturation tranches
-        OTSolver ot(graph, targets, *cached_sp_);
+        // Lazy-init NetworkSimplex (once per game, reused with warm start)
+        if (!ns_)
+            ns_ = std::make_unique<NetworkSimplex>(graph);
+
         // effective_troops: include in-transit when enabled, empty otherwise
         std::vector<float> eff_troops;
         if (use_effective_troops_)
             eff_troops = game.effective_troops(player_id);
 
-        auto ot_cmds = ot.solve(game.node_data(), player_id, scratch_masked_,
-                                demand_value, eff_troops, prod_rate,
-                                config_.ot_saturation_window,
-                                config_.ot_saturation_cost_scale);
+        auto ot_cmds = ns_->solve(game.node_data(), player_id, scratch_masked_,
+                                  targets, demand_value, eff_troops, prod_rate,
+                                  config_.ot_saturation_alpha,
+                                  config_.ot_value_alpha,
+                                  config_.ot_fw_iterations);
         for (auto& cmd : ot_cmds) {
             if (cmd.count > 0) out.troops.push_back(cmd);
         }

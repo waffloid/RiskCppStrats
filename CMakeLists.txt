@@ -33,6 +33,7 @@ add_library(crisky_engine STATIC
     src/systems/transport/transport_solvers.cpp
     src/systems/transport/potential_solvers.cpp
     src/systems/transport/ot_solver.cpp
+    src/systems/transport/network_simplex.cpp
     src/systems/ordering/ordering_solvers.cpp
     src/observability/metrics_collector.cpp
 )
@@ -276,6 +277,10 @@ target_link_libraries(test_ot_solver PRIVATE crisky_gyms)
 
 add_executable(test_ot_plan_evolution tests/test_ot_plan_evolution.cpp)
 target_link_libraries(test_ot_plan_evolution PRIVATE crisky_gyms)
+
+# --- Network simplex tests ---
+add_executable(test_network_simplex tests/test_network_simplex.cpp)
+target_link_libraries(test_network_simplex PRIVATE crisky_gyms)
 
 # --- Viz test binary ---
 add_executable(viz_test src/apps/viz_test/main.cpp)

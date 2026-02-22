@@ -10,6 +10,7 @@
 #include "systems/transport/potential_solvers.hpp"
 #include "systems/transport/transport_solvers.hpp"
 #include "systems/transport/ot_solver.hpp"
+#include "systems/transport/network_simplex.hpp"
 #include "observability/ai_metrics.hpp"
 
 struct DistributionSubAgentSlot {
@@ -63,6 +64,7 @@ private:
     bool use_ot_transport_ = false;
     bool use_effective_troops_ = false;
     std::unique_ptr<ShortestPathData> cached_sp_;
+    std::unique_ptr<NetworkSimplex> ns_;
     bool initialized_ = false;
 
     std::vector<DistributionSubAgentSlot> sub_agents_;

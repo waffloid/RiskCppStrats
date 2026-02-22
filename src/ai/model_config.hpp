@@ -36,9 +36,10 @@ struct ModelConfig {
     float transport_outflow_rate = 0.15f;
     int   transport_min_troops   = 1;
 
-    // OT saturation tranches
-    int   ot_saturation_window     = 20;     // ticks per production tranche
-    float ot_saturation_cost_scale = 0.12f;  // ticks → distance-unit conversion
+    // OT transport (Frank-Wolfe convex saturation)
+    float ot_saturation_alpha    = 0.005f;  // quadratic penalty on future production
+    float ot_value_alpha         = 0.0f;    // demand→SINK negative-cost bonus scale
+    int   ot_fw_iterations       = 8;       // Frank-Wolfe iterations per tick
 };
 
 #endif
