@@ -10,7 +10,7 @@ void register_model(const char* name, ModelFactory factory) {
     mutable_registry()[name] = std::move(factory);
 }
 
-// Forward declarations of per-model registration functions.
+// Forward declarations of per-model registration functions (crisky_engine models).
 extern void register_v0_expansion();
 extern void register_v1_knapsack();
 extern void register_v1_knapsack_hybrid();

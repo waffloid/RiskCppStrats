@@ -1,4 +1,5 @@
 #include <charconv>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -22,13 +23,7 @@
 
 #include "ai/players/passive_player.hpp"
 
-// QUBO model registration (defined in crisky_graph_algo)
-extern void register_v5_qubo();
-extern void register_v7();
-extern void register_v8();
-extern void register_v9();
-extern void register_v10();
-extern void register_v11();
+#include "ai/models/model_registry.hpp"
 
 #include "observability/metrics_collector.hpp"
 #include "viz/imgui_theme.hpp"
@@ -159,12 +154,7 @@ static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int 
 }
 
 int main(int argc, char* argv[]) {
-    register_v5_qubo();
-    register_v7();
-    register_v8();
-    register_v9();
-    register_v10();
-    register_v11();
+    register_graph_algo_models();
 
     uint64_t seed = 42;
     if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));
@@ -488,6 +478,12 @@ int main(int argc, char* argv[]) {
 
     std::vector<PlayerCommands> commands(n_total);
 
+    // Frame profiling
+    using Clock = std::chrono::steady_clock;
+    int prof_frame = 0;
+    double prof_ai_ms = 0, prof_tick_ms = 0, prof_render_ms = 0, prof_imgui_ms = 0;
+    constexpr int PROF_INTERVAL = 10;
+
     while (!WindowShouldClose()) {
         screen_w = GetScreenWidth();
         screen_h = GetScreenHeight();
@@ -548,6 +544,7 @@ int main(int argc, char* argv[]) {
         // One tick per frame
         if (!paused && !game.is_game_over()) {
             float frame_dt = dt * game_speed;
+            auto t_ai0 = Clock::now();
             for (int p = 0; p < n_total; p++) {
                 commands[p] = PlayerCommands{};
                 if (game.is_alive(p)) {
@@ -558,7 +555,11 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+            auto t_ai1 = Clock::now();
             game.tick(frame_dt, commands);
+            auto t_tick1 = Clock::now();
+            prof_ai_ms += std::chrono::duration<double, std::milli>(t_ai1 - t_ai0).count();
+            prof_tick_ms += std::chrono::duration<double, std::milli>(t_tick1 - t_ai1).count();
             tick_count++;
 
             // Update ring buffers for debug viz
@@ -576,6 +577,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Draw
+        auto t_render0 = Clock::now();
         BeginDrawing();
         ClearBackground(COLOR_SCHEMES[scheme_idx].background);
 
@@ -641,6 +643,7 @@ int main(int argc, char* argv[]) {
                  10, screen_h - 15, 10, DARKGRAY);
 
         // ImGui debug panels
+        auto t_imgui0 = Clock::now();
         apply_imgui_theme(COLOR_SCHEMES[scheme_idx]);
         rlImGuiBegin();
         if (show_debug) {
@@ -659,8 +662,27 @@ int main(int argc, char* argv[]) {
             panel_host.draw();
         }
         rlImGuiEnd();
+        auto t_imgui1 = Clock::now();
 
         EndDrawing();
+        auto t_render1 = Clock::now();
+
+        // Frame profiling summary
+        prof_render_ms += std::chrono::duration<double, std::milli>(t_render1 - t_render0).count();
+        prof_imgui_ms += std::chrono::duration<double, std::milli>(t_imgui1 - t_imgui0).count();
+        prof_frame++;
+        if (prof_frame >= PROF_INTERVAL) {
+            double inv = 1.0 / PROF_INTERVAL;
+            std::printf("Frame %d: AI=%.1fms  Tick=%.1fms  Render=%.1fms  ImGui=%.1fms  Total=%.1fms  FPS=%d\n",
+                        tick_count,
+                        prof_ai_ms * inv, prof_tick_ms * inv,
+                        (prof_render_ms - prof_imgui_ms) * inv, prof_imgui_ms * inv,
+                        prof_render_ms * inv + prof_ai_ms * inv + prof_tick_ms * inv,
+                        GetFPS());
+            std::fflush(stdout);
+            prof_ai_ms = prof_tick_ms = prof_render_ms = prof_imgui_ms = 0;
+            prof_frame = 0;
+        }
 
         // Start recording after delay
         if (record_file && !record_started) {

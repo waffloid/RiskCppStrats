@@ -11,13 +11,7 @@
 #include "ai/models.hpp"
 #include "ai/players/passive_player.hpp"
 
-// QUBO model registration (defined in crisky_graph_algo)
-extern void register_v5_qubo();
-extern void register_v7();
-extern void register_v8();
-extern void register_v9();
-extern void register_v10();
-extern void register_v11();
+#include "ai/models/model_registry.hpp"
 
 static bool json_mode = false;
 static bool diag_mode = false;
@@ -124,12 +118,7 @@ static void print_diag_tick(const Game& game, int tick, int n_real,
 }
 
 int main(int argc, char* argv[]) {
-    register_v5_qubo();  // register QUBO-based models
-    register_v7();
-    register_v8();
-    register_v9();
-    register_v10();
-    register_v11();
+    register_graph_algo_models();
 
     uint64_t seed = 42;
     int max_ticks = 10000;
@@ -146,6 +135,8 @@ int main(int argc, char* argv[]) {
             diag_mode = true;
             diag_interval = std::atoi(argv[i] + 7);
             if (diag_interval < 1) diag_interval = 1;
+        } else if (std::string(argv[i]).rfind("--dt=", 0) == 0) {
+            dt = std::atof(argv[i] + 5);
         } else {
             positional.push_back(argv[i]);
         }
@@ -266,6 +257,17 @@ int main(int argc, char* argv[]) {
             if (!json_mode) {
                 auto now = std::chrono::high_resolution_clock::now();
                 double elapsed = std::chrono::duration<double>(now - t0).count();
+                printf("tick %5d (%.1f ticks/sec): ", tick, tick / elapsed);
+                for (int p = 0; p < n_real; p++) {
+                    int total = 0, nodes_owned = 0;
+                    for (const auto& nd : game.node_data()) {
+                        total += nd.troops[p];
+                        if (nd.owner == p) nodes_owned++;
+                    }
+                    printf("P%d: %d troops, %d nodes%s  ",
+                           p, total, nodes_owned, game.is_alive(p) ? "" : " (dead)");
+                }
+                printf("\n");
                 printf("Game over at tick %d (%.3fs, %.0f ticks/sec)\n", tick, elapsed, tick / elapsed);
                 for (int p = 0; p < n_real; p++) {
                     if (game.is_alive(p)) printf("Winner: P%d (%s)\n", p, model_names[p].c_str());

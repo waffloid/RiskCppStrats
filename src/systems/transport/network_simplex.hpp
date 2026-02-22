@@ -66,6 +66,8 @@ private:
     bool has_basis_ = false;
     int last_pivot_count_ = 0;
     bool last_was_warm_ = false;
+    bool last_capped_ = false;
+    float last_obj_cost_ = 0.0f;
     int last_fw_iterations_ = 0;
     std::vector<int> voronoi_;
 
@@ -90,9 +92,9 @@ private:
     void initialize_artificial_basis();
     void run_simplex();
     void recompute_potentials();
-    int find_entering_arc();
+    int find_entering_arc(bool use_bland = false);
     int find_lca(int u, int v);
-    void pivot(int entering);
+    int pivot(int entering);  // returns delta (0 = degenerate)
     void extract_voronoi(const std::vector<int>& demand_nodes);
     std::vector<TroopCommand> extract_commands(
         const std::vector<NodeData>& nodes, int player_id,

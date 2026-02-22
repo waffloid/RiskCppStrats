@@ -40,6 +40,7 @@ struct ModelConfig {
     float ot_saturation_alpha    = 0.005f;  // quadratic penalty on future production
     float ot_value_alpha         = 0.0f;    // demand→SINK negative-cost bonus scale
     int   ot_fw_iterations       = 8;       // Frank-Wolfe iterations per tick
+    int   ot_frontline_garrison  = 0;       // extra OT demand for owned nodes adjacent to real enemies
 };
 
 #endif

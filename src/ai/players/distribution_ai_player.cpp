@@ -180,12 +180,31 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
 
         // Set OT targets: each node gets demand based on actual troop needs.
         std::vector<int> targets(n, 0);
+        int frontline_g = config_.ot_frontline_garrison;
         for (int i = 0; i < n; i++) {
             if (nodes_data[i].owner == player_id) {
                 if (node_build_cost[i] > 0) {
                     targets[i] = node_build_cost[i];
                 } else {
                     targets[i] = min_g;
+                }
+                // Boost garrison for nodes adjacent to real enemies:
+                // demand 1.2x the max enemy neighbor's troops
+                if (frontline_g > 0) {
+                    int max_enemy_troops = 0;
+                    for (int nbr : graph.neighbors(i)) {
+                        int nbr_owner = nodes_data[nbr].owner;
+                        if (nbr_owner >= 0 && nbr_owner != player_id
+                            && nbr_owner < game.n_real_players()) {
+                            int enemy_troops = nodes_data[nbr].troops[nbr_owner];
+                            if (enemy_troops > max_enemy_troops)
+                                max_enemy_troops = enemy_troops;
+                        }
+                    }
+                    if (max_enemy_troops > 0) {
+                        int want = static_cast<int>(max_enemy_troops * 1.2f) + 1;
+                        targets[i] = std::max(targets[i], want);
+                    }
                 }
             } else if (combined[i] > 0.0f) {
                 // Skip nodes owned by real enemy players — war agent

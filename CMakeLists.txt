@@ -177,6 +177,8 @@ add_library(crisky_graph_algo STATIC
     src/ai/models/v9.cpp
     src/ai/models/v10.cpp
     src/ai/models/v11.cpp
+    src/ai/models/v12.cpp
+    src/ai/models/register_graph_algo_models.cpp
 )
 target_include_directories(crisky_graph_algo PUBLIC src/)
 target_link_libraries(crisky_graph_algo PUBLIC crisky_engine Eigen3::Eigen)
