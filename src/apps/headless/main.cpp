@@ -13,6 +13,9 @@
 
 // QUBO model registration (defined in crisky_graph_algo)
 extern void register_v5_qubo();
+extern void register_v7();
+extern void register_v8();
+extern void register_v9();
 
 static bool json_mode = false;
 static bool diag_mode = false;
@@ -120,6 +123,9 @@ static void print_diag_tick(const Game& game, int tick, int n_real,
 
 int main(int argc, char* argv[]) {
     register_v5_qubo();  // register QUBO-based models
+    register_v7();
+    register_v8();
+    register_v9();
 
     uint64_t seed = 42;
     int max_ticks = 10000;

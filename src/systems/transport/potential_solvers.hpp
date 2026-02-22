@@ -35,7 +35,7 @@ void solve_graph_poisson(
     const Graph& graph,
     const std::vector<float>& deficit,
     std::vector<float>& phi,
-    int max_iters = 1000,
+    int max_iters = 10,
     float omega = 1.5f);
 
 #endif

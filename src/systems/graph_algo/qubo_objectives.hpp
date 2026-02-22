@@ -78,6 +78,7 @@ QUBOEconomyInstance qubo_objective_factory_biased(
 BuildPlan economy_solver_qubo(
     const Graph& graph, const std::vector<NodeData>& nodes,
     int player_id, const GameConfig& config,
-    const std::string& objective_name = "production");
+    const std::string& objective_name = "production",
+    const std::string& solver_method = "sa");
 
 #endif

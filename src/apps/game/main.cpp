@@ -24,6 +24,9 @@
 
 // QUBO model registration (defined in crisky_graph_algo)
 extern void register_v5_qubo();
+extern void register_v7();
+extern void register_v8();
+extern void register_v9();
 
 #include "observability/metrics_collector.hpp"
 #include "viz/imgui_theme.hpp"
@@ -155,6 +158,9 @@ static void regenerate_bg_texture(Texture2D& bg_tex, const Color& bg_color, int 
 
 int main(int argc, char* argv[]) {
     register_v5_qubo();
+    register_v7();
+    register_v8();
+    register_v9();
 
     uint64_t seed = 42;
     if (argc > 1 && argv[1][0] != '-') seed = static_cast<uint64_t>(std::atoll(argv[1]));

@@ -27,10 +27,12 @@ add_library(crisky_engine STATIC
     src/ai/models/v2_knapsack.cpp
     src/ai/models/v3.cpp
     src/ai/models/v4.cpp
+    src/ai/sub_agents/conditional_expansion_agent.cpp
     src/ai/distribution.cpp
     src/systems/economy/economy_solvers.cpp
     src/systems/transport/transport_solvers.cpp
     src/systems/transport/potential_solvers.cpp
+    src/systems/transport/ot_solver.cpp
     src/systems/ordering/ordering_solvers.cpp
     src/observability/metrics_collector.cpp
 )
@@ -169,6 +171,9 @@ add_library(crisky_graph_algo STATIC
     src/systems/graph_algo/maxcut_solvers.cpp
     src/systems/graph_algo/qubo_objectives.cpp
     src/ai/models/v5_qubo.cpp
+    src/ai/models/v7.cpp
+    src/ai/models/v8.cpp
+    src/ai/models/v9.cpp
 )
 target_include_directories(crisky_graph_algo PUBLIC src/)
 target_link_libraries(crisky_graph_algo PUBLIC crisky_engine Eigen3::Eigen)
@@ -262,6 +267,13 @@ target_link_libraries(gym_maxcut_viz PRIVATE crisky_gyms crisky_viz)
 # --- Max-cut tests ---
 add_executable(test_maxcut tests/test_maxcut.cpp)
 target_link_libraries(test_maxcut PRIVATE crisky_gyms)
+
+# --- OT solver tests ---
+add_executable(test_ot_solver tests/test_ot_solver.cpp)
+target_link_libraries(test_ot_solver PRIVATE crisky_gyms)
+
+add_executable(test_ot_plan_evolution tests/test_ot_plan_evolution.cpp)
+target_link_libraries(test_ot_plan_evolution PRIVATE crisky_gyms)
 
 # --- Viz test binary ---
 add_executable(viz_test src/apps/viz_test/main.cpp)

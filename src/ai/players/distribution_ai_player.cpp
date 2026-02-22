@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <queue>
 #include <unordered_set>
 
 DistributionAIPlayer::DistributionAIPlayer(int player_id)
@@ -89,8 +90,31 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         }
     }
 
-    // Single softmax on combined scores → distribution (no smoothing)
-    cur_distribution_ = softmax(combined, config_.global_beta);
+    // Softmax → distribution
+    if (config_.use_distance_softmax) {
+        // Lazy-compute all-pairs BFS distances (once per game)
+        if (dist_matrix_.empty()) {
+            const auto& graph = game.graph();
+            dist_matrix_.resize(n * n, n);  // default = n (unreachable)
+            for (int src = 0; src < n; src++) {
+                dist_matrix_[src * n + src] = 0;
+                std::queue<int> q;
+                q.push(src);
+                while (!q.empty()) {
+                    int cur = q.front(); q.pop();
+                    for (int nbr : graph.neighbors(cur)) {
+                        if (dist_matrix_[src * n + nbr] == n) {
+                            dist_matrix_[src * n + nbr] = dist_matrix_[src * n + cur] + 1;
+                            q.push(nbr);
+                        }
+                    }
+                }
+            }
+        }
+        cur_distribution_ = softmax_distance(combined, config_.global_beta, dist_matrix_, n);
+    } else {
+        cur_distribution_ = softmax(combined, config_.global_beta);
+    }
 
     // Compute total owned troops for potential
     int total_troops = 0;
@@ -135,12 +159,96 @@ void DistributionAIPlayer::decide(const Game& game, int player_id, PlayerCommand
         scratch_masked_[i] = direct_sources.count(i) > 0;
     }
 
-    // Transport: use greedy multi-neighbor solver (same as gym)
-    auto transport_cmds = transport_solver_greedy(
-        game.graph(), game.node_data(), potential, player_id,
-        scratch_masked_, config_.transport_outflow_rate, config_.transport_min_troops);
-    for (auto& cmd : transport_cmds) {
-        out.troops.push_back(cmd);
+    // Transport: OT (min-cost flow) or greedy gradient-following
+    if (use_ot_transport_) {
+        const auto& cfg = game.config();
+        const auto& graph = game.graph();
+        int min_g = config_.transport_min_troops;
+
+        // Build per-node cost map from economy agent's build queue.
+        // This gives us the correct structure type (factory vs PP) for each target.
+        std::vector<int> node_build_cost(n, 0);
+        for (const auto& slot : sub_agents_) {
+            auto* econ = dynamic_cast<EconomySubAgent*>(slot.agent.get());
+            if (!econ) continue;
+            for (const auto& cmd : econ->build_queue()) {
+                int cost = (cmd.structure == NodeState::POWERPLANT)
+                         ? cfg.cost_powerplant : cfg.cost_factory;
+                node_build_cost[cmd.node_idx] = cost + 1;
+            }
+        }
+
+        // Set OT targets: each node gets demand based on actual troop needs.
+        std::vector<int> targets(n, 0);
+        for (int i = 0; i < n; i++) {
+            if (nodes_data[i].owner == player_id) {
+                if (node_build_cost[i] > 0) {
+                    targets[i] = node_build_cost[i];
+                } else {
+                    targets[i] = min_g;
+                }
+            } else if (combined[i] > 0.0f) {
+                // Expansion: need enough to beat defenders
+                int defenders = 0;
+                for (int p = 0; p < static_cast<int>(nodes_data[i].troops.size()); p++)
+                    defenders += nodes_data[i].troops[p];
+                targets[i] = defenders + 1;
+            }
+        }
+
+        // Compute per-node value for cost weighting in OT LP.
+        // Value = marginal production improvement from building here.
+        // SSP edge cost becomes dist / value, so high-value targets are
+        // effectively closer and get served first.
+        std::vector<float> demand_value(n, 0.0f);
+        for (int i = 0; i < n; i++) {
+            if (targets[i] <= 0) continue;
+            if (nodes_data[i].owner == player_id && node_build_cost[i] > 0) {
+                // Economy build target — check what structure
+                bool is_pp = (node_build_cost[i] > cfg.cost_factory + 1);
+                if (is_pp) {
+                    // PP value: 2 * number of adjacent built factories
+                    int factory_nbrs = 0;
+                    for (int nbr : graph.neighbors(i)) {
+                        if (nodes_data[nbr].owner == player_id &&
+                            (nodes_data[nbr].state == NodeState::FACTORY ||
+                             nodes_data[nbr].state == NodeState::CAPITAL))
+                            factory_nbrs++;
+                    }
+                    demand_value[i] = std::max(1.0f, 2.0f * factory_nbrs);
+                } else {
+                    // Factory value: 2 * number of adjacent PPs + 1
+                    int pp_nbrs = 0;
+                    for (int nbr : graph.neighbors(i)) {
+                        if (nodes_data[nbr].owner == player_id &&
+                            nodes_data[nbr].state == NodeState::POWERPLANT)
+                            pp_nbrs++;
+                    }
+                    demand_value[i] = 1.0f + 2.0f * pp_nbrs;
+                }
+            } else {
+                // Expansion or garrison — base value
+                demand_value[i] = 0.5f;
+            }
+        }
+
+        // Lazy-init cached shortest paths (once per game)
+        if (!cached_sp_)
+            cached_sp_ = std::make_unique<ShortestPathData>(
+                compute_shortest_paths(graph));
+        // OT solve with value-weighted costs
+        OTSolver ot(graph, targets, *cached_sp_);
+        auto ot_cmds = ot.solve(game.node_data(), player_id, scratch_masked_, demand_value);
+        for (auto& cmd : ot_cmds) {
+            if (cmd.count > 0) out.troops.push_back(cmd);
+        }
+    } else {
+        auto transport_cmds = transport_solver_greedy(
+            game.graph(), game.node_data(), potential, player_id,
+            scratch_masked_, config_.transport_outflow_rate, config_.transport_min_troops);
+        for (auto& cmd : transport_cmds) {
+            out.troops.push_back(cmd);
+        }
     }
 
     // Compute distribution metrics

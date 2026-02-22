@@ -3,10 +3,11 @@
 #include <cmath>
 
 float compute_displacement(int count, float dt, float edge_length, const GameConfig& config) {
-    float raw = (config.displacement_c2 / std::cbrt(static_cast<float>(count))) * dt;
-    float clamped = std::min(raw, dt);
+    // Speed = 1/count + min_speed (world-units per second)
+    float speed = (1.0f / static_cast<float>(std::max(1, count))) + config.min_troop_speed;
+    float raw = speed * dt;
     // Convert from world-space displacement to position-space (fraction of edge)
-    return clamped / edge_length;
+    return raw / edge_length;
 }
 
 void insert_troop_group(EdgeLanes& el, int origin_node, int owner, int count,

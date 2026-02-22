@@ -277,7 +277,8 @@ BuildPlan economy_solver_qubo(
     const std::vector<NodeData>& nodes,
     int player_id,
     const GameConfig& config,
-    const std::string& objective_name) {
+    const std::string& objective_name,
+    const std::string& solver_method) {
 
     if (graph.num_nodes() == 0) return BuildPlan{};
 
@@ -287,8 +288,12 @@ BuildPlan economy_solver_qubo(
     auto eco_inst = builder(graph, nodes, player_id, config);
     if (eco_inst.qubo.n == 0) return BuildPlan{};
 
-    // Solve via SA (warm-started from greedy)
-    auto solution = qubo_solve_sa(eco_inst.qubo, 42, 5000, 5.0f);
+    QUBOSolution solution;
+    if (solver_method == "gw") {
+        solution = qubo_solve_gw(eco_inst.qubo, 42);
+    } else {
+        solution = qubo_solve_sa(eco_inst.qubo, 42, 5000, 5.0f);
+    }
 
     // Map partition to BuildPlan: +1 → FACTORY, -1 → POWERPLANT
     BuildPlan plan;

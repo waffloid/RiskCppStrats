@@ -16,7 +16,7 @@ public:
                std::vector<float>& scores_out,
                PlayerCommands& direct_commands_out) override;
 
-private:
+protected:
     ModelConfig config_;
 };
 

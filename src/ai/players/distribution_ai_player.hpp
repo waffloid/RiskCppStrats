@@ -9,6 +9,7 @@
 #include "ai/model_config.hpp"
 #include "systems/transport/potential_solvers.hpp"
 #include "systems/transport/transport_solvers.hpp"
+#include "systems/transport/ot_solver.hpp"
 #include "observability/ai_metrics.hpp"
 
 struct DistributionSubAgentSlot {
@@ -49,10 +50,15 @@ public:
     // Inject a custom potential solver (default: potential_deficit).
     void set_potential_solver(PotentialSolver solver) { potential_solver_ = std::move(solver); }
 
+    // Use OT (min-cost flow) transport instead of greedy gradient-following.
+    void enable_ot_transport() { use_ot_transport_ = true; }
+
 private:
     int player_id_;
     ModelConfig config_;
     PotentialSolver potential_solver_ = potential_deficit;
+    bool use_ot_transport_ = false;
+    std::unique_ptr<ShortestPathData> cached_sp_;
     bool initialized_ = false;
 
     std::vector<DistributionSubAgentSlot> sub_agents_;
@@ -71,6 +77,9 @@ private:
     // Scratch buffers (reused across ticks)
     std::vector<float> scratch_scores_;
     std::vector<bool> scratch_masked_;
+
+    // Cached all-pairs distance matrix for distance softmax (flat n*n)
+    std::vector<int> dist_matrix_;
 };
 
 #endif

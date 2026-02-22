@@ -17,7 +17,7 @@ struct GameConfig {
 
     // Troops
     int init_troop_count = 501;
-    float displacement_c2 = 5.0f;
+    float min_troop_speed = 0.1f;  // base speed (world-units/s); speed = 1/count + min_troop_speed
 
     // Combat
     float attack_divisor = 100.0f;

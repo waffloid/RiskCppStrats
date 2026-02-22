@@ -31,6 +31,41 @@ TroopDistribution softmax(const std::vector<float>& raw_scores, float beta) {
     return dist;
 }
 
+TroopDistribution softmax_distance(const std::vector<float>& raw_scores, float beta,
+                                    const std::vector<int>& dist_matrix, int n) {
+    TroopDistribution dist;
+    dist.weights.resize(n);
+
+    if (n == 0) return dist;
+
+    // Precompute exp(beta * E_j) for all j (with numerical stability)
+    float max_score = *std::max_element(raw_scores.begin(), raw_scores.end());
+    std::vector<float> exp_scores(n);
+    for (int j = 0; j < n; j++) {
+        exp_scores[j] = std::exp(beta * (raw_scores[j] - max_score));
+    }
+
+    // value_i = exp(beta * E_i) / sum_j [exp(beta * E_j) * exp(-dist_ij)]
+    float total = 0.0f;
+    for (int i = 0; i < n; i++) {
+        float denom = 0.0f;
+        for (int j = 0; j < n; j++) {
+            int d = dist_matrix[i * n + j];
+            denom += exp_scores[j] * std::exp(-static_cast<float>(d));
+        }
+        dist.weights[i] = (denom > 0.0f) ? exp_scores[i] / denom : 0.0f;
+        total += dist.weights[i];
+    }
+
+    // Linear normalize to sum to 1
+    if (total > 0.0f) {
+        float inv = 1.0f / total;
+        for (int i = 0; i < n; i++) dist.weights[i] *= inv;
+    }
+
+    return dist;
+}
+
 TroopDistribution pool(const std::vector<const TroopDistribution*>& dists,
                         const std::vector<float>& weights) {
     TroopDistribution result;

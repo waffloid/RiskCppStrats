@@ -15,6 +15,7 @@ struct ModelConfig {
 
     // Expansion sub-agent
     float expansion_border_score = 1.0f;     // score for border nodes (lower than economy to build first)
+    float expansion_unconstructed_cutoff = 1.0f;  // disable expansion if fraction of owned nodes unconstructed exceeds this (1.0 = never disable)
 
     // War sub-agent (attacks via direct commands; distribution scores pull reserves forward)
     float war_front_line_score  = 2.0f;
@@ -27,6 +28,9 @@ struct ModelConfig {
     float economy_pool_weight   = 5.0f;
     float expansion_pool_weight = 1.0f;
     float war_pool_weight       = 1.0f;
+
+    // Distribution mode
+    bool use_distance_softmax = false;  // use distance-decayed local softmax instead of global
 
     // Transport
     float transport_outflow_rate = 0.15f;

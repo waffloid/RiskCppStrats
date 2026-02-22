@@ -1,5 +1,6 @@
 #include "gyms/transport_gym.hpp"
 #include "systems/transport/transport_solvers.hpp"
+#include "systems/transport/ot_solver.hpp"
 #include "systems/transport/loss_functions.hpp"
 #include "engine/game.hpp"
 
@@ -68,7 +69,22 @@ int main(int argc, char* argv[]) {
     }
     TransportPreset preset = *preset_opt;  // mutable — mouse-follow overwrites target
 
-    TransportSolver solver = get_transport_solver(solver_name);
+    // OT solver needs graph+target at construction; rebuilt when target changes (mouse-follow).
+    // Shortest paths are precomputed once and reused across rebuilds.
+    ShortestPathData ot_sp;
+    std::shared_ptr<OTSolver> ot_solver_ptr;
+    TransportSolver solver;
+    if (solver_name == "ot") {
+        ot_sp = compute_shortest_paths(preset.graph);
+        ot_solver_ptr = std::make_shared<OTSolver>(preset.graph, preset.target_troops, ot_sp);
+        solver = [&ot_solver_ptr](const Graph&, const std::vector<NodeData>& nodes,
+                                   const std::vector<float>&, int pid,
+                                   const std::vector<bool>& masked) {
+            return ot_solver_ptr->solve(nodes, pid, masked);
+        };
+    } else {
+        solver = get_transport_solver(solver_name);
+    }
     if (!solver) { std::fprintf(stderr, "Unknown solver: %s\n", solver_name.c_str()); return 1; }
     LossFunction loss_fn = get_loss_function(loss_name);
     if (!loss_fn) { std::fprintf(stderr, "Unknown loss: %s\n", loss_name.c_str()); return 1; }
@@ -149,6 +165,73 @@ int main(int argc, char* argv[]) {
         [&]() -> std::vector<float> { return current_frac; }
     ));
 
+    // Voronoi partition: each node colored by its nearest supply node.
+    // Only active when using OT solver.
+    std::vector<int> voronoi_cells(n, -1);
+    if (ot_solver_ptr) {
+        auto voronoi_panel = std::make_unique<GraphHeatmap>(
+            "Supply Voronoi", &game.graph(),
+            [&]() -> std::vector<float> {
+                // Dummy values — actual coloring via node_color_fn
+                return std::vector<float>(n, 0.0f);
+            }
+        );
+        voronoi_panel->set_node_color_fn([&]() -> std::vector<unsigned int> {
+            // HSV-based distinct colors per demand node
+            std::vector<unsigned int> colors(n);
+            if (static_cast<int>(voronoi_cells.size()) != n) {
+                std::fill(colors.begin(), colors.end(), 0xFF404040u);
+                return colors;
+            }
+            // Collect unique demand node IDs
+            std::vector<int> unique_suppliers;
+            for (int c : voronoi_cells) {
+                if (c < 0) continue;
+                bool found = false;
+                for (int u : unique_suppliers) {
+                    if (u == c) { found = true; break; }
+                }
+                if (!found) unique_suppliers.push_back(c);
+            }
+            int num_colors = std::max(1, static_cast<int>(unique_suppliers.size()));
+
+            for (int i = 0; i < n; i++) {
+                if (voronoi_cells[i] < 0) {
+                    colors[i] = 0xFF404040;  // gray for unassigned
+                    continue;
+                }
+                // Find index of this supplier
+                int idx = 0;
+                for (int k = 0; k < static_cast<int>(unique_suppliers.size()); k++) {
+                    if (unique_suppliers[k] == voronoi_cells[i]) { idx = k; break; }
+                }
+                // HSV → RGB with fixed S=0.7, V=0.9
+                float hue = static_cast<float>(idx) / static_cast<float>(num_colors);
+                float h = hue * 6.0f;
+                float s = 0.7f, v = 0.9f;
+                float c = v * s;
+                float x = c * (1.0f - std::abs(std::fmod(h, 2.0f) - 1.0f));
+                float m = v - c;
+                float r1, g1, b1;
+                if (h < 1) { r1 = c; g1 = x; b1 = 0; }
+                else if (h < 2) { r1 = x; g1 = c; b1 = 0; }
+                else if (h < 3) { r1 = 0; g1 = c; b1 = x; }
+                else if (h < 4) { r1 = 0; g1 = x; b1 = c; }
+                else if (h < 5) { r1 = x; g1 = 0; b1 = c; }
+                else { r1 = c; g1 = 0; b1 = x; }
+                auto to_byte = [](float f) -> unsigned int {
+                    return static_cast<unsigned int>(f * 255.0f);
+                };
+                unsigned int r = to_byte(r1 + m);
+                unsigned int g = to_byte(g1 + m);
+                unsigned int b = to_byte(b1 + m);
+                colors[i] = 0xFF000000 | (b << 16) | (g << 8) | r;  // ABGR
+            }
+            return colors;
+        });
+        host.add(std::move(voronoi_panel));
+    }
+
     int tick_count = 0;
     float current_loss = 0.0f;
     int current_transit = 0;
@@ -212,6 +295,10 @@ int main(int argc, char* argv[]) {
                 // Update target_frac for heatmap
                 target_frac.assign(n, 0.0f);
                 target_frac[mouse_node] = 1.0f;
+                // Rebuild OT solver with new target (reuses cached shortest paths)
+                if (ot_solver_ptr) {
+                    ot_solver_ptr = std::make_shared<OTSolver>(preset.graph, preset.target_troops, ot_sp);
+                }
             }
         }
 
@@ -232,6 +319,11 @@ int main(int argc, char* argv[]) {
                 current_frac[i] = (total_troops > 0)
                     ? static_cast<float>(tr.current[i]) / static_cast<float>(total_troops)
                     : 0.0f;
+            }
+
+            // Update Voronoi from last solve's flow assignment
+            if (ot_solver_ptr) {
+                voronoi_cells = ot_solver_ptr->last_voronoi();
             }
 
             buf_loss.push(tr.loss);

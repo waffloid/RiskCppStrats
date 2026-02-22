@@ -72,5 +72,5 @@ TransportSolver get_transport_solver(const std::string& name) {
 }
 
 std::vector<std::string> list_transport_solvers() {
-    return {"greedy"};
+    return {"greedy", "ot"};
 }

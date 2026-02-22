@@ -2,6 +2,7 @@
 #include "systems/transport/transport_solvers.hpp"
 #include "systems/transport/potential_solvers.hpp"
 #include "systems/transport/loss_functions.hpp"
+#include "systems/transport/ot_solver.hpp"
 #include "engine/graph_builder.hpp"
 #include "engine/game.hpp"
 
@@ -306,9 +307,16 @@ TransportTickResult transport_gym_tick(
     solve_graph_poisson(game.graph(), result.deficit, warm_phi);
     result.gradient = warm_phi;
 
+    // Build effective node data with in-transit troops counted at origin.
+    // This makes the solver see idempotent troop counts (on-node + in-transit).
+    std::vector<NodeData> effective_nodes = game.node_data();
+    for (int i = 0; i < n; i++) {
+        effective_nodes[i].troops[0] = result.current[i];
+    }
+
     // Get commands from solver
     std::vector<bool> no_mask(n, false);
-    auto commands = solver(game.graph(), game.node_data(), result.gradient, 0, no_mask);
+    auto commands = solver(game.graph(), effective_nodes, result.gradient, 0, no_mask);
 
     // Discount already-committed in-transit troops from each node's send budget.
     std::vector<int> sendable(n);
@@ -370,7 +378,12 @@ TransportGymResult run_transport_gym(
     TransportGymResult result;
     result.total_ticks = max_ticks;
 
-    TransportSolver solver = get_transport_solver(solver_name);
+    TransportSolver solver;
+    if (solver_name == "ot") {
+        solver = make_ot_solver(preset.graph, preset.target_troops);
+    } else {
+        solver = get_transport_solver(solver_name);
+    }
     LossFunction loss_fn = get_loss_function(loss_name);
     if (!solver || !loss_fn) return result;
 

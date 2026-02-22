@@ -11,6 +11,13 @@ struct TroopDistribution {
 // Nodes with zero scores contribute minimally at high β.
 TroopDistribution softmax(const std::vector<float>& raw_scores, float beta);
 
+// Distance-decayed softmax (local competition):
+//   value_i = exp(β*E_i) / Σ_j exp(β*E_j) * exp(-dist_ij)
+// Then linearly normalize so weights sum to 1.
+// dist_matrix[i*n + j] = shortest-path hop distance between i and j.
+TroopDistribution softmax_distance(const std::vector<float>& raw_scores, float beta,
+                                    const std::vector<int>& dist_matrix, int n);
+
 // Weighted average of distributions: result[i] = Σ_k(w_k * dist_k[i]) / Σ_k(w_k)
 TroopDistribution pool(const std::vector<const TroopDistribution*>& dists,
                         const std::vector<float>& weights);

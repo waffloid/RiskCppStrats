@@ -61,14 +61,8 @@ void EconomySubAgent::rebuild_queue(const Game& game, int player_id) {
         }
     }
 
-    // Cap queue size
-    int num_factories = 0;
-    for (const auto& nd : nodes_data) {
-        if (nd.owner == player_id && nd.state == NodeState::FACTORY) num_factories++;
-    }
-    int max_queue = 1 + num_factories / 5;
-
-    // Greedily fill empty slots from ideal plan.
+    // Fill queue from ideal plan — all viable targets, no cap.
+    // OT transport handles prioritization by distance and value.
     // Priority: feasible PP > factory. Within each, nearest first.
     // A PP is feasible if it has at least 1 adjacent built factory/capital.
 
@@ -127,11 +121,9 @@ void EconomySubAgent::rebuild_queue(const Game& game, int player_id) {
 
     // Fill: PPs first (high value when feasible), then factories
     for (const auto& cmd : pp_candidates) {
-        if (static_cast<int>(queue_.size()) >= max_queue) break;
         queue_.push_back(cmd);
     }
     for (const auto& cmd : factory_candidates) {
-        if (static_cast<int>(queue_.size()) >= max_queue) break;
         queue_.push_back(cmd);
     }
 
@@ -148,7 +140,6 @@ void EconomySubAgent::rebuild_queue(const Game& game, int player_id) {
         }
         std::sort(fallbacks.begin(), fallbacks.end());
         for (const auto& [d, idx] : fallbacks) {
-            if (static_cast<int>(queue_.size()) >= max_queue) break;
             queue_.push_back({idx, NodeState::FACTORY});
         }
     }
@@ -202,15 +193,8 @@ void EconomySubAgent::score(const Game& game, int player_id,
             }),
         queue_.end());
 
-    // Greedily fill empty slots
-    int num_factories = 0;
-    for (const auto& nd : nodes_data) {
-        if (nd.owner == player_id && nd.state == NodeState::FACTORY) num_factories++;
-    }
-    int max_queue = 1 + num_factories / 5;
-    if (static_cast<int>(queue_.size()) < max_queue) {
-        rebuild_queue(game, player_id);
-    }
+    // Rebuild full desire list each tick
+    rebuild_queue(game, player_id);
 
     // Emit scores with linear (constant additive) decay down the queue.
     // Softmax exponentiates, so constant additive difference → constant

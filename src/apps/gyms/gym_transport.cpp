@@ -60,9 +60,16 @@ int main(int argc, char* argv[]) {
         print_usage();
         return 1;
     }
-    if (!get_transport_solver(solver_name)) {
-        std::fprintf(stderr, "Unknown solver: %s\n", solver_name.c_str());
-        return 1;
+    {
+        auto known = list_transport_solvers();
+        bool valid = false;
+        for (const auto& s : known) {
+            if (s == solver_name) { valid = true; break; }
+        }
+        if (!valid) {
+            std::fprintf(stderr, "Unknown solver: %s\n", solver_name.c_str());
+            return 1;
+        }
     }
     if (!get_loss_function(loss_name)) {
         std::fprintf(stderr, "Unknown loss function: %s\n", loss_name.c_str());
