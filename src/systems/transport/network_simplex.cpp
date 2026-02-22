@@ -50,6 +50,12 @@ NetworkSimplex::NetworkSimplex(const Graph& game_graph)
     potential_.resize(num_nodes_);
     depth_.resize(num_nodes_);
     thread_.resize(num_nodes_);
+
+    // Pre-size scratch buffers (reused across pivots, zero alloc in hot path)
+    children_.resize(num_nodes_);
+    scratch_order_.reserve(num_nodes_);
+    scratch_stack_.reserve(num_nodes_);
+    pivot_path_.reserve(num_nodes_);
 }
 
 void NetworkSimplex::build_static_arcs() {
@@ -199,7 +205,19 @@ int NetworkSimplex::find_lca(int u, int v) {
 }
 
 // ============================================================================
-// Pivot
+// Rebuild children_ from parent_ (O(N), no heap alloc — vectors reuse capacity)
+// ============================================================================
+
+void NetworkSimplex::rebuild_children() {
+    for (auto& c : children_) c.clear();
+    for (int i = 0; i < num_nodes_; i++) {
+        if (parent_[i] >= 0)
+            children_[parent_[i]].push_back(i);
+    }
+}
+
+// ============================================================================
+// Pivot (zero heap allocation — all scratch buffers are preallocated members)
 // ============================================================================
 
 void NetworkSimplex::pivot(int entering) {
@@ -307,28 +325,31 @@ void NetworkSimplex::pivot(int entering) {
     int enter_end_in_subtree = u_in_subtree ? u : v;
     int enter_end_out = u_in_subtree ? v : u;
 
-    // Reverse parent pointers
-    std::vector<int> path;
+    // Reverse parent pointers (using preallocated pivot_path_)
+    pivot_path_.clear();
     {
         int cur = enter_end_in_subtree;
         while (cur != leaving_node) {
-            path.push_back(cur);
+            pivot_path_.push_back(cur);
             cur = parent_[cur];
         }
-        path.push_back(leaving_node);
+        pivot_path_.push_back(leaving_node);
     }
 
-    for (int k = static_cast<int>(path.size()) - 1; k >= 1; k--) {
-        parent_[path[k]] = path[k - 1];
-        parent_arc_[path[k]] = parent_arc_[path[k - 1]];
+    for (int k = static_cast<int>(pivot_path_.size()) - 1; k >= 1; k--) {
+        parent_[pivot_path_[k]] = pivot_path_[k - 1];
+        parent_arc_[pivot_path_[k]] = parent_arc_[pivot_path_[k - 1]];
     }
 
     parent_[enter_end_in_subtree] = enter_end_out;
     parent_arc_[enter_end_in_subtree] = entering;
 
-    // Rebuild depth and potentials for modified subtree
+    // Rebuild children_ from parent_ (O(N), reuses vector capacity)
+    rebuild_children();
+
+    // Update depth and potentials for modified subtree via BFS using children_
+    // This is O(subtree_size) instead of the old O(subtree_size * N) scan.
     {
-        std::queue<int> q;
         depth_[enter_end_in_subtree] = depth_[enter_end_out] + 1;
         {
             const auto& arc = arcs_[entering];
@@ -337,46 +358,41 @@ void NetworkSimplex::pivot(int entering) {
             else
                 potential_[enter_end_in_subtree] = potential_[enter_end_out] + arc.cost;
         }
-        q.push(enter_end_in_subtree);
 
-        while (!q.empty()) {
-            int node = q.front();
-            q.pop();
-            for (int j = 0; j < num_nodes_; j++) {
-                if (parent_[j] == node && j != enter_end_in_subtree) {
-                    depth_[j] = depth_[node] + 1;
-                    const auto& arc = arcs_[parent_arc_[j]];
-                    if (arc.from == node)
-                        potential_[j] = potential_[node] - arc.cost;
-                    else
-                        potential_[j] = potential_[node] + arc.cost;
-                    q.push(j);
-                }
+        // BFS through subtree using scratch_stack_ as queue
+        scratch_stack_.clear();
+        scratch_stack_.push_back(enter_end_in_subtree);
+        int head = 0;
+        while (head < static_cast<int>(scratch_stack_.size())) {
+            int node = scratch_stack_[head++];
+            for (int child : children_[node]) {
+                depth_[child] = depth_[node] + 1;
+                const auto& arc = arcs_[parent_arc_[child]];
+                if (arc.from == node)
+                    potential_[child] = potential_[node] - arc.cost;
+                else
+                    potential_[child] = potential_[node] + arc.cost;
+                scratch_stack_.push_back(child);
             }
         }
     }
 
-    // Rebuild thread order via DFS from root
+    // Rebuild thread order via DFS (O(N), using preallocated buffers)
     {
-        std::vector<std::vector<int>> children(num_nodes_);
-        for (int i = 0; i < num_nodes_; i++) {
-            if (parent_[i] >= 0)
-                children[parent_[i]].push_back(i);
+        scratch_order_.clear();
+        scratch_stack_.clear();
+        scratch_stack_.push_back(SRC_);
+        while (!scratch_stack_.empty()) {
+            int nd = scratch_stack_.back();
+            scratch_stack_.pop_back();
+            scratch_order_.push_back(nd);
+            for (int c = static_cast<int>(children_[nd].size()) - 1; c >= 0; c--)
+                scratch_stack_.push_back(children_[nd][c]);
         }
-        std::vector<int> order;
-        order.reserve(num_nodes_);
-        std::vector<int> stk = {SRC_};
-        while (!stk.empty()) {
-            int nd = stk.back();
-            stk.pop_back();
-            order.push_back(nd);
-            for (int c = static_cast<int>(children[nd].size()) - 1; c >= 0; c--)
-                stk.push_back(children[nd][c]);
-        }
-        for (int i = 0; i + 1 < static_cast<int>(order.size()); i++)
-            thread_[order[i]] = order[i + 1];
-        if (!order.empty())
-            thread_[order.back()] = order[0];
+        for (int i = 0; i + 1 < static_cast<int>(scratch_order_.size()); i++)
+            thread_[scratch_order_[i]] = scratch_order_[i + 1];
+        if (!scratch_order_.empty())
+            thread_[scratch_order_.back()] = scratch_order_[0];
     }
 }
 

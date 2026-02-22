@@ -73,6 +73,14 @@ private:
     std::vector<int> producer_arc_indices_;
     std::vector<int> producer_node_indices_;
 
+    // Scratch buffers (preallocated, reused across pivots — zero heap alloc per pivot)
+    std::vector<std::vector<int>> children_;  // tree children from parent_
+    std::vector<int> scratch_order_;          // DFS preorder for thread rebuild
+    std::vector<int> scratch_stack_;          // BFS queue / DFS stack
+    std::vector<int> pivot_path_;             // path from entering to leaving node
+
+    void rebuild_children();  // rebuild children_ from parent_ (O(N))
+
     void build_static_arcs();
     void update_dynamic_arcs(const std::vector<int>& supply, const std::vector<int>& demand,
                              const std::vector<float>& demand_val, float value_alpha,
