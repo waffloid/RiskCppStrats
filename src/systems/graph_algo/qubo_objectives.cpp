@@ -267,6 +267,65 @@ QUBOEconomyInstance qubo_objective_factory_biased(
     return result;
 }
 
+// ── Joint cheap+expensive QUBO ───────────────────────────────
+
+JointQUBOResult qubo_objective_joint(
+    const Graph& graph, const std::vector<NodeData>& nodes,
+    int player_id, const GameConfig& config,
+    float mu_cheap, float mu_expensive,
+    float mu_bridge, float cost_bias) {
+
+    // 1. Build base production QUBO (N variables)
+    auto prod = qubo_objective_production(graph, nodes, player_id, config);
+    int N = prod.qubo.n;
+
+    if (N == 0) return {QUBOInstance{}, {}, 0};
+
+    // 2. Build Q_cheap = Q_production + cost advantage bias on diagonal.
+    //    Factories (x=+1) are cheaper: cost_F=500 vs cost_PP=2500.
+    //    Positive diagonal bias → prefer x_i=+1 → prefer factory.
+    float cost_F = static_cast<float>(config.cost_factory);
+    float cost_PP = static_cast<float>(config.cost_powerplant);
+    float advantage = (cost_PP - cost_F) / (2.0f * cost_PP);  // 0.8 with defaults
+
+    // Q_cheap is a copy of Q_prod with extra diagonal
+    auto Q_cheap = prod.qubo.Q;  // N×N copy
+    for (int i = 0; i < N; i++) {
+        Q_cheap[i][i] += cost_bias * advantage;
+    }
+
+    // 3. Allocate 2N×2N combined Q matrix
+    int N2 = 2 * N;
+    QUBOInstance combined;
+    combined.n = N2;
+    combined.Q.assign(N2, std::vector<float>(N2, 0.0f));
+    combined.graph = nullptr;  // dense path — no graph topology for 2N variables
+
+    // 4. Fill top-left block: μ_C * Q_cheap (vars 0..N-1 = cheap plan)
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            combined.Q[i][j] = mu_cheap * Q_cheap[i][j];
+        }
+    }
+
+    // 5. Fill bottom-right block: μ_E * Q_prod (vars N..2N-1 = expensive plan)
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            combined.Q[N + i][N + j] = mu_expensive * prod.qubo.Q[i][j];
+        }
+    }
+
+    // 6. Fill off-diagonal bridge: μ_bridge/2 at positions (i, N+i) and (N+i, i)
+    //    Energy contribution: 2 * Q[i][N+i] * x_Ci * x_Ei = μ_bridge * x_Ci * x_Ei
+    //    Positive → rewards agreement (same sign = same building type)
+    for (int i = 0; i < N; i++) {
+        combined.Q[i][N + i] = mu_bridge / 2.0f;
+        combined.Q[N + i][i] = mu_bridge / 2.0f;
+    }
+
+    return {combined, prod.var_to_node, N};
+}
+
 // ── Economy solver integration ───────────────────────────────
 
 #include "systems/economy/economy_solvers.hpp"

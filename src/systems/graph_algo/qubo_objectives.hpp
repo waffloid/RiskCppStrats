@@ -69,6 +69,27 @@ QUBOEconomyInstance qubo_objective_factory_biased(
     int player_id, const GameConfig& config,
     float factory_bias_strength = 1.5f);
 
+// ── Joint cheap+expensive QUBO ───────────────────────────────
+//
+// Jointly solves for two economy layouts in a single 2N-variable QUBO:
+//   - Cheap plan (vars 0..N-1): production + factory cost advantage bias
+//   - Expensive plan (vars N..2N-1): production-optimal (max-cut)
+//   - Bridge coupling: rewards agreement between plans
+//
+// H(x) = μ_C·x_C^T·Q_cheap·x_C + μ_E·x_E^T·Q_exp·x_E + μ_bridge·Σ x_Ci·x_Ei
+
+struct JointQUBOResult {
+    QUBOInstance qubo;              // 2N × 2N
+    std::vector<int> var_to_node;  // length N, shared by both halves
+    int n_vars;                    // N (half the QUBO size)
+};
+
+JointQUBOResult qubo_objective_joint(
+    const Graph& graph, const std::vector<NodeData>& nodes,
+    int player_id, const GameConfig& config,
+    float mu_cheap = 1.0f, float mu_expensive = 1.0f,
+    float mu_bridge = 0.1f, float cost_bias = 1.0f);
+
 // ── Economy solver integration ───────────────────────────────
 
 #include "systems/common/types.hpp"

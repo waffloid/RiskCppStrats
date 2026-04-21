@@ -289,6 +289,168 @@ static void test_objective_registry() {
     printf("OK\n");
 }
 
+// ── Joint QUBO tests ────────────────────────────────────────
+
+static void test_joint_qubo_dimensions() {
+    printf("  test_joint_qubo_dimensions... ");
+
+    auto g = make_k4();
+    GameConfig config{};
+    std::vector<NodeData> nodes(4);
+    for (int i = 0; i < 4; i++) {
+        nodes[i].owner = 0;
+        nodes[i].state = NodeState::DEFAULT;
+        nodes[i].troops = {100};
+    }
+    nodes[0].state = NodeState::CAPITAL;
+
+    auto result = qubo_objective_joint(g, nodes, 0, config);
+
+    // K4 with 1 capital → 3 variables per plan → 6 total
+    assert(result.n_vars == 3);
+    assert(result.qubo.n == 6);
+    assert(static_cast<int>(result.qubo.Q.size()) == 6);
+    for (int i = 0; i < 6; i++) {
+        assert(static_cast<int>(result.qubo.Q[i].size()) == 6);
+    }
+    assert(static_cast<int>(result.var_to_node.size()) == 3);
+
+    printf("OK\n");
+}
+
+static void test_joint_qubo_block_structure() {
+    printf("  test_joint_qubo_block_structure... ");
+
+    auto g = make_k4();
+    GameConfig config{};
+    std::vector<NodeData> nodes(4);
+    for (int i = 0; i < 4; i++) {
+        nodes[i].owner = 0;
+        nodes[i].state = NodeState::DEFAULT;
+        nodes[i].troops = {100};
+    }
+    nodes[0].state = NodeState::CAPITAL;
+
+    float mu_c = 2.0f, mu_e = 3.0f, mu_b = 0.5f, cb = 1.0f;
+    auto result = qubo_objective_joint(g, nodes, 0, config, mu_c, mu_e, mu_b, cb);
+    int N = result.n_vars;
+
+    // Get reference production Q for comparison
+    auto prod = qubo_objective_production(g, nodes, 0, config);
+
+    // Bottom-right block should be mu_e * Q_prod
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            float expected = mu_e * prod.qubo.Q[i][j];
+            assert(std::abs(result.qubo.Q[N + i][N + j] - expected) < 1e-6f);
+        }
+    }
+
+    // Off-diagonal blocks: only (i, N+i) and (N+i, i) should be non-zero
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (i == j) {
+                assert(std::abs(result.qubo.Q[i][N + j] - mu_b / 2.0f) < 1e-6f);
+            } else {
+                assert(result.qubo.Q[i][N + j] == 0.0f);
+                assert(result.qubo.Q[N + i][j] == 0.0f);
+            }
+        }
+    }
+
+    // Top-left block should have extra cost bias vs Q_prod
+    float cost_F = static_cast<float>(config.cost_factory);
+    float cost_PP = static_cast<float>(config.cost_powerplant);
+    float advantage = (cost_PP - cost_F) / (2.0f * cost_PP);
+    for (int i = 0; i < N; i++) {
+        float expected_diag = mu_c * (prod.qubo.Q[i][i] + cb * advantage);
+        assert(std::abs(result.qubo.Q[i][i] - expected_diag) < 1e-6f);
+        // Off-diagonal should match scaled production
+        for (int j = i + 1; j < N; j++) {
+            float expected = mu_c * prod.qubo.Q[i][j];
+            assert(std::abs(result.qubo.Q[i][j] - expected) < 1e-6f);
+        }
+    }
+
+    printf("OK\n");
+}
+
+static void test_joint_qubo_bridge_symmetry() {
+    printf("  test_joint_qubo_bridge_symmetry... ");
+
+    auto g = make_path(8);
+    GameConfig config{};
+    std::vector<NodeData> nodes(8);
+    for (int i = 0; i < 8; i++) {
+        nodes[i].owner = 0;
+        nodes[i].state = NodeState::DEFAULT;
+        nodes[i].troops = {100};
+    }
+    nodes[0].state = NodeState::CAPITAL;
+
+    auto result = qubo_objective_joint(g, nodes, 0, config);
+    int N2 = result.qubo.n;
+
+    // Full matrix should be symmetric
+    for (int i = 0; i < N2; i++) {
+        for (int j = 0; j < N2; j++) {
+            assert(std::abs(result.qubo.Q[i][j] - result.qubo.Q[j][i]) < 1e-8f);
+        }
+    }
+
+    printf("OK\n");
+}
+
+static void test_joint_qubo_sa_convergence() {
+    printf("  test_joint_qubo_sa_convergence... ");
+
+    // Use a real game graph for realistic test
+    GameConfig config{};
+    GameConfig gen_config = config;
+    float area = gen_config.region_width * gen_config.region_height;
+    gen_config.poisson_intensity = 50.0f / area;
+    Game game(gen_config, {0}, 42);
+    Graph graph = game.graph();
+    std::vector<NodeData> nodes = game.node_data();
+    for (int i = 0; i < graph.num_nodes(); i++) {
+        nodes[i].owner = 0;
+        if (nodes[i].troops.empty()) nodes[i].troops.resize(1, 0);
+        nodes[i].troops[0] = config.cost_powerplant + 1;
+    }
+    nodes[0].state = NodeState::CAPITAL;
+
+    auto result = qubo_objective_joint(graph, nodes, 0, config,
+                                       1.0f, 1.0f, 0.1f, 1.0f);
+    assert(result.n_vars > 0);
+
+    // Run SA
+    auto solution = qubo_solve_sa(result.qubo, 42, 10000, 5.0f);
+    assert(solution.objective > 0.0f);
+    assert(static_cast<int>(solution.partition.size()) == result.qubo.n);
+
+    // Extract cheap and expensive plans
+    int N = result.n_vars;
+    int cheap_factories = 0, exp_factories = 0, agreements = 0;
+    for (int i = 0; i < N; i++) {
+        if (solution.partition[i] > 0) cheap_factories++;
+        if (solution.partition[N + i] > 0) exp_factories++;
+        if (solution.partition[i] == solution.partition[N + i]) agreements++;
+    }
+
+    // Both plans should have a mix of factories and PPs
+    assert(cheap_factories > 0);
+    assert(cheap_factories < N);
+    assert(exp_factories > 0);
+    assert(exp_factories < N);
+
+    // Cheap should have more factories than expensive (cost bias)
+    assert(cheap_factories >= exp_factories);
+
+    float agreement_pct = 100.0f * static_cast<float>(agreements) / static_cast<float>(N);
+    printf("OK (N=%d, cheap_F=%d, exp_F=%d, agree=%.0f%%)\n",
+           N, cheap_factories, exp_factories, agreement_pct);
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 int main() {
@@ -305,6 +467,10 @@ int main() {
     test_solver_registry();
     test_objective_registry();
     test_qubo_economy_solver();
+    test_joint_qubo_dimensions();
+    test_joint_qubo_block_structure();
+    test_joint_qubo_bridge_symmetry();
+    test_joint_qubo_sa_convergence();
 
     printf("All tests passed.\n");
     return 0;

@@ -269,6 +269,10 @@ target_link_libraries(gym_maxcut PRIVATE crisky_gyms)
 add_executable(gym_maxcut_viz src/apps/gyms/gym_maxcut_viz.cpp)
 target_link_libraries(gym_maxcut_viz PRIVATE crisky_gyms crisky_viz)
 
+# --- Joint economy QUBO gym viz ---
+add_executable(gym_joint_economy_viz src/apps/gyms/gym_joint_economy_viz.cpp)
+target_link_libraries(gym_joint_economy_viz PRIVATE crisky_gyms crisky_viz)
+
 # --- Max-cut tests ---
 add_executable(test_maxcut tests/test_maxcut.cpp)
 target_link_libraries(test_maxcut PRIVATE crisky_gyms)
