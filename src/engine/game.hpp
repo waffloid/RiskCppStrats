@@ -8,7 +8,8 @@
 #include "game_state.hpp"
 #include "graph.hpp"
 #include "edge_lanes.hpp"
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
+#include "systems/combat/combat_resolver.hpp"
 
 class Game {
 public:
@@ -35,19 +36,27 @@ public:
     int n_players() const { return n_players_; }
     int n_real_players() const { return n_real_players_; }
     float time() const { return time_; }
+    const std::vector<int>& tick_deaths() const { return tick_deaths_; }
 
     bool is_game_over() const;
+
+    // Effective troop counts per node for a player, including in-transit troops
+    // interpolated by position along edges. A group at position t on edge A→B
+    // contributes (1-t)*count to A and t*count to B.
+    std::vector<float> effective_troops(int player_id) const;
 
 private:
     GameConfig config_;
     Graph graph_;
     std::vector<NodeData> node_data_;
     std::vector<EdgeLanes> edge_lanes_;
+    CombatState combat_state_;
     std::vector<bool> alive_;
     float time_ = 0.0f;
     float accumulated_production_time_ = 0.0f;  // for tick-based production (invariant across speeds)
     int n_players_;
     int n_real_players_;  // excludes neutral player
+    std::vector<int> tick_deaths_;  // per-player deaths from last tick
 
     void process_build_commands(const std::vector<PlayerCommands>& commands);
     void process_troop_sends(const std::vector<PlayerCommands>& commands);

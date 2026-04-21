@@ -17,8 +17,8 @@ void test_poisson_generation() {
     assert(g.num_edges() > 0);
 
     // All node degrees should respect max_neighbors
-    for (const auto& node : g.nodes) {
-        assert(static_cast<int>(node.neighbor_indices.size()) <= config.max_neighbors);
+    for (int i = 0; i < g.num_nodes(); i++) {
+        assert(g.degree(i) <= config.max_neighbors);
     }
 
     // All edges should be within distance threshold

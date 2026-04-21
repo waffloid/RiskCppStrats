@@ -1,6 +1,6 @@
 #include <cassert>
 #include <cstdio>
-#include "engine/combat.hpp"
+#include "systems/combat/combat_resolver.hpp"
 #include "engine/production.hpp"
 #include "engine/routing.hpp"
 #include "engine/graph.hpp"
@@ -15,15 +15,21 @@ void test_basic_combat() {
 
     std::vector<NodeData> all_nodes(1);
     all_nodes[0].troops = {1000, 500};
-    all_nodes[0].accumulated_damage = {0.0f, 0.0f};
     all_nodes[0].state = NodeState::DEFAULT;
     all_nodes[0].owner = -1;
+
+    CombatState state;
+    state.init(1, n_players);
 
     // attack: [1000/100=10, 500/100=5]
     // defense: [1000/1000=1.0, 500/1000=0.5]
     // loss_0 = max(5 - 1.0, 0) = 4.0
     // loss_1 = max(10 - 0.5, 0) = 9.5 -> int(9.5) = 9
-    resolve_combat(all_nodes[0], 0, g, all_nodes, n_players, config, 1.0f);
+    NodeCombatResult nr = compute_node_casualties(
+        all_nodes[0], 0, g, all_nodes, state.accumulated_damage[0],
+        n_players, config, 1.0f);
+    all_nodes[0].troops[0] -= nr.casualties[0];
+    all_nodes[0].troops[1] -= nr.casualties[1];
 
     assert(all_nodes[0].troops[0] == 996);
     assert(all_nodes[0].troops[1] == 491);
@@ -42,22 +48,35 @@ void test_combat_small_troops() {
 
     std::vector<NodeData> all_nodes(1);
     all_nodes[0].troops = {50, 30};
-    all_nodes[0].accumulated_damage = {0.0f, 0.0f};
     all_nodes[0].state = NodeState::DEFAULT;
+
+    CombatState state;
+    state.init(1, n_players);
 
     // attack: [50/100=0.5, 30/100=0.3]
     // defense: [50/1000=0.05, 30/1000=0.03]
     // loss_0 per tick = max(0.3 - 0.05, 0) = 0.25
     // loss_1 per tick = max(0.5 - 0.03, 0) = 0.47
     // After 1 tick: no int damage yet, but accumulators are non-zero
-    resolve_combat(all_nodes[0], 0, g, all_nodes, n_players, config, 1.0f);
+    NodeCombatResult nr = compute_node_casualties(
+        all_nodes[0], 0, g, all_nodes, state.accumulated_damage[0],
+        n_players, config, 1.0f);
+    all_nodes[0].troops[0] -= nr.casualties[0];
+    all_nodes[0].troops[1] -= nr.casualties[1];
+    state.accumulated_damage[0] = nr.updated_damage;
+
     assert(all_nodes[0].troops[0] == 50);
     assert(all_nodes[0].troops[1] == 30);
 
     // After 3 ticks total: acc_1 reaches 1.41 -> p1 takes 1 damage
     // acc_0 = 0.75 (not yet 1), so p0 unchanged
     for (int i = 0; i < 2; i++) {
-        resolve_combat(all_nodes[0], 0, g, all_nodes, n_players, config, 1.0f);
+        nr = compute_node_casualties(
+            all_nodes[0], 0, g, all_nodes, state.accumulated_damage[0],
+            n_players, config, 1.0f);
+        all_nodes[0].troops[0] -= nr.casualties[0];
+        all_nodes[0].troops[1] -= nr.casualties[1];
+        state.accumulated_damage[0] = nr.updated_damage;
     }
     assert(all_nodes[0].troops[0] == 50);
     assert(all_nodes[0].troops[1] == 29);
@@ -76,16 +95,22 @@ void test_fort_defense() {
 
     std::vector<NodeData> all_nodes(1);
     all_nodes[0].troops = {1000, 500};
-    all_nodes[0].accumulated_damage = {0.0f, 0.0f};
     all_nodes[0].state = NodeState::FORT;
     all_nodes[0].owner = 0;
+
+    CombatState state;
+    state.init(1, n_players);
 
     // attack: [1000/100=10, 500/100=5]
     // defense: [1000/1000=1.0, 500/1000=0.5]
     // Fort boosts owner (p0) defense: 1.0 * 1.2 = 1.2
     // loss_0 = max(5 - 1.2, 0) = 3.8 -> int(3.8) = 3
     // loss_1 = max(10 - 0.5, 0) = 9.5 -> int(9.5) = 9
-    resolve_combat(all_nodes[0], 0, g, all_nodes, n_players, config, 1.0f);
+    NodeCombatResult nr = compute_node_casualties(
+        all_nodes[0], 0, g, all_nodes, state.accumulated_damage[0],
+        n_players, config, 1.0f);
+    all_nodes[0].troops[0] -= nr.casualties[0];
+    all_nodes[0].troops[1] -= nr.casualties[1];
 
     assert(all_nodes[0].troops[0] == 997);
     assert(all_nodes[0].troops[1] == 491);
@@ -105,12 +130,13 @@ void test_artillery_attack() {
 
     std::vector<NodeData> all_nodes(2);
     all_nodes[0].troops = {1000, 500};
-    all_nodes[0].accumulated_damage = {0.0f, 0.0f};
     all_nodes[0].state = NodeState::DEFAULT;
     all_nodes[1].troops = {100, 0};
-    all_nodes[1].accumulated_damage = {0.0f, 0.0f};
     all_nodes[1].state = NodeState::ARTILLERY;
     all_nodes[1].owner = 0;
+
+    CombatState state;
+    state.init(2, n_players);
 
     // At node 0:
     // base attack: [1000/100=10, 500/100=5]
@@ -118,7 +144,11 @@ void test_artillery_attack() {
     // defense: [1000/1000=1.0, 500/1000=0.5]
     // loss_0 = max(5 - 1.0, 0) = 4.0
     // loss_1 = max(15 - 0.5, 0) = 14.5 -> int(14.5) = 14
-    resolve_combat(all_nodes[0], 0, g, all_nodes, n_players, config, 1.0f);
+    NodeCombatResult nr = compute_node_casualties(
+        all_nodes[0], 0, g, all_nodes, state.accumulated_damage[0],
+        n_players, config, 1.0f);
+    all_nodes[0].troops[0] -= nr.casualties[0];
+    all_nodes[0].troops[1] -= nr.casualties[1];
 
     assert(all_nodes[0].troops[0] == 996);
     assert(all_nodes[0].troops[1] == 486);
@@ -166,6 +196,36 @@ void test_routing() {
     printf("test_routing passed\n");
 }
 
+void test_resolve_all_pure() {
+    GameConfig config;
+    int n_players = 2;
+
+    Graph g;
+    Node n0; n0.x = 0; n0.y = 0; n0.idx = 0;
+    g.nodes.push_back(n0);
+
+    std::vector<NodeData> nodes(1);
+    nodes[0].troops = {1000, 500};
+    nodes[0].state = NodeState::DEFAULT;
+    nodes[0].owner = -1;
+
+    CombatState state;
+    state.init(1, n_players);
+
+    AllCombatResults results = resolve_all_node_combat(
+        g, nodes, state, n_players, config, 1.0f);
+
+    assert(results.per_node.size() == 1);
+    assert(results.total_deaths[0] == 4);
+    assert(results.total_deaths[1] == 9);
+    // Verify original nodes are NOT mutated (pure function)
+    assert(nodes[0].troops[0] == 1000);
+    assert(nodes[0].troops[1] == 500);
+
+    printf("test_resolve_all_pure passed (deaths: %d, %d)\n",
+           results.total_deaths[0], results.total_deaths[1]);
+}
+
 int main() {
     test_basic_combat();
     test_combat_small_troops();
@@ -173,6 +233,7 @@ int main() {
     test_artillery_attack();
     test_production_basic();
     test_routing();
+    test_resolve_all_pure();
     printf("All combat/production/routing tests passed\n");
     return 0;
 }

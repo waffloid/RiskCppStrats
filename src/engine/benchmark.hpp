@@ -7,7 +7,7 @@
 #include "engine/game.hpp"
 #include "engine/graph.hpp"
 #include "engine/game_config.hpp"
-#include "player/player_interface.hpp"
+#include "engine/player_interface.hpp"
 
 // Per-node state override for benchmark scenarios.
 struct NodeOverride {

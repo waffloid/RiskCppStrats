@@ -35,8 +35,14 @@ public:
 
     int edge_between(int node_a, int node_b) const;
 
+    // Pick n evenly-spaced capital nodes by angle from centroid.
+    std::vector<int> pick_spaced_capitals(int n) const;
+
     int num_nodes() const { return static_cast<int>(nodes.size()); }
     int num_edges() const { return static_cast<int>(edges.size()); }
+
+    const std::vector<int>& neighbors(int node_idx) const { return nodes[node_idx].neighbor_indices; }
+    int degree(int node_idx) const { return static_cast<int>(nodes[node_idx].neighbor_indices.size()); }
 
     static uint64_t pack_pair(int a, int b) {
         int lo = (a < b) ? a : b;
@@ -46,6 +52,7 @@ public:
 
 private:
     void cull_high_degree(int max_neighbors);
+    void reorder_spatial();
     void build_edges(float distance_threshold);
     void build_edge_index();
 };

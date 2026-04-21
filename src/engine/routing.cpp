@@ -8,7 +8,7 @@ int next_hop(const Graph& graph, int current_node, int global_dest) {
     const auto& cur = graph.nodes[current_node];
     const auto& dest = graph.nodes[global_dest];
 
-    if (cur.neighbor_indices.empty()) return -1;
+    if (graph.neighbors(current_node).empty()) return -1;
 
     // Direction to global destination
     float dx = dest.x - cur.x;
@@ -22,7 +22,7 @@ int next_hop(const Graph& graph, int current_node, int global_dest) {
     int best_nbr = -1;
     float best_dot = -std::numeric_limits<float>::infinity();
 
-    for (int nbr_idx : cur.neighbor_indices) {
+    for (int nbr_idx : graph.neighbors(current_node)) {
         const auto& nbr = graph.nodes[nbr_idx];
         float ndx = nbr.x - cur.x;
         float ndy = nbr.y - cur.y;
