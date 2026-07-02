@@ -1,14 +1,13 @@
 % Ordering solver benchmark -- generated tables under results/ordering/
 
-\subsection{Protocol}
+\subsection{Ordering solvers}
+\label{sec:ordering}
 
-Fix an economy plan (MCMC-annealed layouts on 10 seeded graphs), then choose
-the \emph{order} in which to execute its build steps, paying each structure's
-cost from accumulated production. Scores: \emph{accumulated production} (the
-integral of the production curve over the build-out; rewards early payoff)
-and \emph{ticks to complete} the plan.
-
-\subsection{Results and reading}
+\paragraph{Protocol.} Fix an economy plan (MCMC-annealed layouts on 10
+seeded graphs), then choose the \emph{order} in which to execute its build
+steps, paying each structure's cost from accumulated production. Scores:
+\emph{accumulated production} (the integral of the production curve over the
+build-out; rewards early payoff) and \emph{ticks to complete} the plan.
 
 \begin{table}[ht]
 \centering
@@ -17,17 +16,19 @@ and \emph{ticks to complete} the plan.
 \label{tab:ordering}
 \end{table}
 
-Accumulated production is nearly flat across orderings (spread
-$\approx 0.05\%$, far below the seed-to-seed sd) --- on these plans the metric
-is dominated by the plan itself, not its ordering. Ticks-to-complete
-discriminates sharply: \code{cheapest\_first} finishes 36\% sooner than naive
-\code{sequential} (2160 vs.\ 3379 ticks), with \code{production\_gradient}
---- greedily building whichever remaining step most increases production ---
-second on completion (2792) while edging the accumulation metric.
+\paragraph{Reading.} Accumulated production is nearly flat across orderings
+(spread $\approx 0.05\%$, far below the seed-to-seed sd) --- on these plans
+the metric is dominated by the plan itself, not its ordering.
+Ticks-to-complete discriminates sharply: \code{cheapest\_first} finishes
+36\% sooner than naive \code{sequential} (2160 vs.\ 3379 ticks), with
+\code{production\_gradient} --- greedily building whichever remaining step
+most increases production --- second on completion (2792) while edging the
+accumulation metric.
 
 Verdict: \code{cheapest\_first} to get the plan online fast,
-\code{production\_gradient} to front-load the production curve. The headline
-metric cannot separate them further; a discounted objective
-$\int e^{-\lambda t} P(t)\,dt$, which directly encodes the design notes'
-argument for average-time optimization, is the proposed fix
-(\S\ref{sec:open}, item 5).
+\code{production\_gradient} to front-load the production curve. Given the
+early-war-collapse pattern (\S\ref{sec:elo-podium}), speed-to-online
+plausibly matters more than the integral --- but the current headline metric
+cannot adjudicate; a discounted objective $\int e^{-\lambda t} P(t)\,dt$,
+which directly encodes the design notes' argument for average-time
+optimization, is the proposed fix (\S\ref{sec:open}).

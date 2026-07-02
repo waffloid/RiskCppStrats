@@ -1,0 +1,158 @@
+% The limits of a rating: measure the intransitivity, localize it, illustrate
+% it, explain it. Artifacts under results/elo_duel/ and results/archetypes/.
+
+The podium tie of \S\ref{sec:elo-ladder} raises a sharper question than
+``who is best'': how much of this game can \emph{any} single ranking capture?
+This section answers it in four steps --- measure the intransitivity, find
+where it lives, watch it in a single game, and test a hypothesis about its
+mechanism. The chain ends somewhere unexpected: at a game-design lever rather
+than a bot fix.
+
+\subsection{Measuring it: HodgeRank}
+\label{sec:elo-hodge}
+
+A scalar rating assumes the tournament is a gradient: everyone's strength
+lies on one axis. The pairwise data can measure that assumption. Take the
+skew-symmetric edge flow $Y_{ij} = (\text{score rate of } i \text{ over }
+j) - \tfrac12$ on the complete comparison graph and Hodge-decompose it
+\citep{jiang2011}: a gradient part (explained by a potential $s_i$, i.e.\ by
+\emph{some} ranking) plus a residual, which on a complete graph is pure curl
+--- local rock-paper-scissors cycles that no ranking can represent.
+
+The result: the gradient explains \textbf{\hodgetransitivityduel} of the
+flow's energy in the duel tournament (\hodgetransitivity{} in the
+free-for-all) --- \textbf{roughly a fifth of the game is cyclic under either
+protocol}, so the intransitivity is a property of the game, not of the
+seating arrangement. The Hodge potential and the Bradley--Terry fit agree
+exactly on order in both (Spearman $\rho = \hodgespearmanduel$;
+Figure~\ref{fig:hodge}), so Elo is not mis-ranking anyone --- the cyclic
+fifth is simply invisible to \emph{any} scalar rating. The pairwise score
+matrix itself (in \code{results/}) is thus fully summarized by two objects:
+the potential (Table~\ref{tab:elo}) and the cycles, to which we now turn.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.62\textwidth]{\resultsfig{elo_duel/figures/hodge_vs_elo.pdf}}
+\caption{Hodge potential vs.\ Bradley--Terry rating, duel protocol. The
+monotone relationship says the two scalar summaries agree; the interesting
+information is what neither can hold --- the cyclic \hodgecurlduel{}
+quantified by the decomposition.}
+\label{fig:hodge}
+\end{figure}
+
+\subsection{Localizing it: one cycle, organized by posture}
+\label{sec:elo-cycles}
+
+The curl matrix is real antisymmetric, so it decomposes exactly into
+independent planar rotations --- each eigenplane is one cycle. Projecting
+the models onto the leading plane (the ``gamescape'' construction of
+\citealp{balduzzi2019}; cf.\ \citealp{czarnecki2020}) shows a strikingly
+low-dimensional structure: \textbf{the leading plane carries
+\cycleplaneshareduel{} of the curl energy} --- essentially one game-wide
+cycle rather than many local ones (Figure~\ref{fig:cyclic-plane}). And the
+phase ordering around that cycle clusters by strategic posture: the
+war-first knapsack models sit together (0--40$^\circ$), the OT podium
+together (88--116$^\circ$), and the economy-first mid-table together
+(180--250$^\circ$). Intransitivity in this game is not diffuse noise; it is
+a single rotation through posture space.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.6\textwidth]{\resultsfig{elo_duel/figures/cyclic_plane.pdf}}
+\caption{Models on the leading cyclic plane of the duel tournament's curl
+(distance from origin = participation in the dominant cycle; angular order =
+position in it). Posture families cluster in phase.}
+\label{fig:cyclic-plane}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\resultstable{elo_duel/tables/curl_triangles}
+\caption{Largest-curl triangles in the duel tournament (residual flow around
+the 3-cycle, in score-rate units; $\pm\tfrac32$ is the maximum possible).
+The podium itself is near-cyclic in head-to-head play: \code{v9} takes
+\code{v8} 0.75, \code{v12} takes \code{v9} 0.75, \code{v12}--\code{v8}
+splits.}
+\label{tab:curl}
+\end{table}
+
+\subsection{Watching it: the podium cycle in a single game}
+\label{sec:elo-podium}
+
+The podium's head-to-head structure cycles under both protocols; a replay
+makes it concrete. Figure~\ref{fig:v9v8} replays FFA tournament game 1272
+(\code{v8} solo vs.\ two independent \code{v9}). The game is decided almost
+immediately: \code{v8} expands fastest off the start --- peaking near 75
+nodes by tick 250 --- but is torn apart in the first contact wars and
+eliminated by tick $\sim$600. Everything after is the two \code{v9} seats
+partitioning the map (the solid copy plateaus around 240 nodes and wins the
+node count at timeout). Two lessons. First, losses in this game are not slow
+grinds but \emph{early-war collapses} --- a pattern that recurs in every
+case study in this report and explains why fast-payoff economies beat
+gym-optimal ones (\S\ref{sec:economy}). Second, whatever edge \code{v8}'s
+local softmax buys against the field, it does not survive simultaneous
+pressure from two OT-supplied fronts: the cycle is real, and it turns on
+\emph{which} strength a matchup happens to probe.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v9_beats_v8.pdf}}
+\caption{FFA tournament game 1272 replayed. All three curves are the three
+players of this \emph{single} game: \code{v8} in the solo seat (blue) and the
+two independent \code{v9} instances (green, solid/dashed). Left: total
+troops; right: nodes held. After \code{v8}'s elimination the remaining
+dynamics are the two \code{v9} seats fighting each other.}
+\label{fig:v9v8}
+\end{figure}
+
+\subsection{Explaining it: testing the rock--paper--scissors hypothesis}
+\label{sec:elo-rps}
+
+A candidate mechanism (Joel's, predating these experiments) maps the game
+onto RPS by strategic posture: \emph{rock} = aggressive; \emph{paper} =
+defensive but distrustful (stacks borders); \emph{scissors} = defensive and
+trusting (just builds). Predicted: rock $>$ scissors (steamroll), scissors
+$>$ paper (leaner allocation), paper $>$ rock (defender's advantage). The
+posture clustering of Figure~\ref{fig:cyclic-plane} makes this hypothesis
+worth the experiment.
+
+The nearest existing models
+(\code{v1\_knapsack}/\code{v0\_expansion}/\code{v12}) cannot test it ---
+they differ in chassis quality (economy, transport era), and indeed that
+triple is perfectly transitive in both tournaments (\code{v12} $>$ \code{v0}
+$>$ \code{v1k}, 8/8 each): power differences drown posture. So we built
+three archetypes on \emph{one} chassis (v12's QUBO economy + OT transport,
+\code{src/ai/models/archetypes.cpp}) differing only in posture, and played
+the triangle (12 duels per pair, Table~\ref{tab:archetypes}).
+
+\begin{table}[ht]
+\centering
+\resultstable{archetypes/tables/archetypes}
+\caption{Archetype triangle, posture isolated on a fixed chassis. Score rate
+is for the first-named archetype.}
+\label{tab:archetypes}
+\end{table}
+
+Two of three edges confirm the theory --- rock sweeps scissors 12/12
+(steamroll), paper sweeps rock 12/12 (defender's advantage) --- but the
+linchpin edge fails: \textbf{paper also sweeps scissors 12/12, so there is
+no cycle; border-stacking dominates}. The diagnosis is mechanical: in the
+current rules, garrisoned troops have \emph{no opportunity cost} --- they
+are not consumed, do not decay, and do not reduce production --- so
+``resources more efficiently allocated to building'' never cashes out. (One
+implementation caveat: \code{war\_pool\_weight} scales the distribution pull
+toward fronts but not the war agent's \emph{direct} attack commands, so
+\code{arch\_paper} still attacks opportunistically; a clean test of
+``defensive but distrustful'' wants an attack-suppression knob.)
+
+This closes the section's arc, and ties the report's threads together. The
+posture wheel is two-thirds real, and its missing edge is a statement about
+the \emph{game}, not the bots: standing armies are free. The same fact
+appears twice more in this report --- the frontline garrison is what rescues
+\code{v11} into \code{v12} (\S\ref{sec:elo-v11}), and what sweeps the
+corridor battery (\S\ref{sec:combat}). Under the current rules,
+border-stacking is simply the dominant posture; give garrisons a cost
+(upkeep, or production diverted) and the RPS wheel plausibly activates
+(\S\ref{sec:open}). The intransitivity that exists \emph{today} lives
+higher in the stack: the podium's softmax-vs-transport cycle, where the
+strengths being probed differ by matchup rather than by posture.
