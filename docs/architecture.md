@@ -66,33 +66,37 @@ But the system carries state across ticks. Gyms expose both standalone (syntheti
 
 ```
 src/
-  engine/          Core game simulation (unchanged)
-                   Game, Graph, Combat, EdgeLanes, Production, Routing, Benchmark, GraphBuilder
+  engine/          Core game simulation (no AI, no rendering)
+                   Game, Graph, EdgeLanes, Production, Routing, Benchmark, GraphBuilder
 
-  systems/         System-specific logic + I/O types (new)
+  systems/         System-specific logic + I/O types
     common/        Buffer<T>, contract types, DataSink (CSV writer)
-    economy/       QP solvers: greedy, bootstrap, MCMC (stub), branch-bound (stub)
+    economy/       Build-plan solvers: greedy, bootstrap, MCMC annealing, QUBO bridge
     ordering/      Scheduling solvers: sequential, cheapest-first, nearest, production-gradient
-    combat/        War agent solver typedef (wraps model registry)
-    transport/     Redistribution solvers: gradient flow (extracted from attention player)
-                   Loss functions: L1, L2, max-deficit
+    combat/        Pure-function combat resolver + war solver typedef (wraps model registry)
+    transport/     Redistribution solvers: greedy gradient flow, OT SSP min-cost flow,
+                   network simplex + Frank-Wolfe; loss functions: L1, L2, max-deficit
+    graph_algo/    QUBO/max-cut infrastructure (SA, Goemans-Williamson, Q-matrix objectives)
 
-  gyms/            Experiment harnesses (new)
+  gyms/            Experiment harnesses
                    economy_gym, ordering_gym, combat_gym, transport_gym
                    combat_benchmarks, projections
 
-  player/          AI composition layer (minor mods)
-    players/       AttentionAIPlayer, HumanPlayer, PassivePlayer
-    sub_agents/    Economy, Expansion, Bootstrap, Knapsack, DirectWar, FrontierGarrison (new)
-    utils/         war_utilities (unchanged, already pure functions)
+  ai/              AI composition layer
+    players/       DistributionAIPlayer (weighted sub-agent orchestrator)
+    sub_agents/    Economy, Expansion, ConditionalExpansion, DirectWar, KnapsackWar
+    utils/         war_utilities (pure functions)
+    models/        v0-v12 model registry, one file per model
 
-  renderer/        RayLib visualization (unchanged, extended via overlays in head binaries)
+  apps/            Entry points: game/, headless/, gyms/, ga_tune/, screenshots/
+  ui/              HumanPlayer input (selection, commands)
+  renderer/        RayLib visualization (camera, color schemes, zen mode)
+  viz/             ImGui panel/overlay framework (charts, heatmaps, playback)
   observability/   Metrics collection + export
 
-experiments/       Python orchestration (new)
-notebooks/         Jupyter analysis templates (new)
+experiments/       Python orchestration (subprocess + CSV/JSONL)
 output/            Experiment CSV data (gitignored)
-docs/              This file
+docs/              This file, plus game-rules.md, ai.md, solvers.md, tools.md
 ```
 
 ## Build Dependency Chain
@@ -128,7 +132,7 @@ The combat gym uses two transport mechanisms with a mask:
 - **Aggregation mode**: Gradient flow for strategic troop movement (rear -> frontier). Active for nodes NOT adjacent to enemies.
 - **Edge-declarative mode**: Per-edge tactical commands from war agents. Active for nodes adjacent to enemies.
 
-The mask is the existing `scratch_masked_` mechanism in AttentionAIPlayer. Combat-specific AI models use `FrontierGarrisonSubAgent` instead of economy agents (no build noise).
+The mask is the existing `scratch_masked_` mechanism in DistributionAIPlayer: war agents claim source nodes via direct commands, and transport skips them.
 
 ## Desired Config Field (formerly Attention)
 
@@ -156,9 +160,9 @@ Each C++ binary is a standalone Unix tool. Python composes them via subprocess.
 
 ## Deferred Migrations
 
-1. **Option B library restructure**: Move player code from `crisky_engine` to `crisky_systems`. Engine becomes pure simulation. Blocked on: verifying Option A correctness.
-2. **MCMC economy solver**: Stub created. Implementation deferred to experiment phase.
-3. **Branch-and-bound economy solver**: Stub created. Deferred.
-4. **Flow-based war agent**: Replace knapsack with min-cost flow. Deferred to combat experiments.
-5. **Earth-mover loss function**: Requires graph shortest-path computation. Stub created.
+1. ~~**MCMC economy solver**~~: Done — plus QUBO SA/GW solvers on top (`systems/graph_algo/`).
+2. ~~**Flow-based transport**~~: Done — OT SSP and network simplex min-cost flow (`systems/transport/`), used by v9+.
+3. **Branch-and-bound economy solver**: Stub (`economy_solver_branch_bound` returns empty). Deferred.
+4. **Flow-based war agent**: Replace knapsack/greedy attacks with min-cost flow. Deferred to combat experiments.
+5. **Earth-mover loss function**: Transport gym still measures L1/L2/max-deficit only.
 6. **pybind11 upgrade**: If subprocess + CSV becomes a bottleneck for interactive Python.
