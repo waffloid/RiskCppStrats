@@ -27,7 +27,11 @@ from experiments.common import RESULTS_ROOT, write_csv, write_tex_table  # noqa:
 
 
 def main():
-    outdir = RESULTS_ROOT / "elo"
+    name = "elo"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--dir="):
+            name = arg.split("=")[1]
+    outdir = RESULTS_ROOT / name
     with open(outdir / "raw" / "games.csv") as f:
         games = list(csv.DictReader(f))
 
@@ -109,10 +113,12 @@ def main():
     d_sq = sum((rank_h[m] - rank_e[m]) ** 2 for m in models)
     spearman = 1 - 6 * d_sq / (n * (n * n - 1))
 
+    # Macro names get a protocol suffix so both protocols can be \input together.
+    sfx = "duel" if name == "elo_duel" else ""
     with open(outdir / "hodge_macros.tex", "w") as f:
-        f.write(f"\\newcommand{{\\hodgetransitivity}}{{{100*transitivity:.1f}\\%}}\n")
-        f.write(f"\\newcommand{{\\hodgecurl}}{{{100*resid_sq/flow_sq:.1f}\\%}}\n")
-        f.write(f"\\newcommand{{\\hodgespearman}}{{{spearman:.2f}}}\n")
+        f.write(f"\\newcommand{{\\hodgetransitivity{sfx}}}{{{100*transitivity:.1f}\\%}}\n")
+        f.write(f"\\newcommand{{\\hodgecurl{sfx}}}{{{100*resid_sq/flow_sq:.1f}\\%}}\n")
+        f.write(f"\\newcommand{{\\hodgespearman{sfx}}}{{{spearman:.2f}}}\n")
 
     print(f"transitivity (grad fraction): {transitivity:.3f}")
     print(f"curl fraction:                {resid_sq / flow_sq:.3f}")

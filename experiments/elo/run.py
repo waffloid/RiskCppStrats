@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Bot ladder: deterministic round-robin, Bradley-Terry ratings on Elo scale.
 
-Protocol (following the original elo_tournament.py): each game is 3-player,
-one model "solo" vs two copies of the opponent; the solo model scores 1.0 if
-it ends with strictly more nodes than the best opponent copy, 0.5 on a tie.
-Each unordered pair plays GAMES_PER_PAIR games, half with each model solo,
-with deterministic seeds. Ratings are fit by Bradley-Terry maximum likelihood
-(minorization-maximization) on the aggregate score matrix, then mapped to the
-Elo scale (1500 + 400*log10 p). Unlike sequential K-factor Elo, the result is
-independent of game order and exactly reproducible.
+Two protocols:
+  duel -- symmetric 1v1, sides alternated across games; the standard basis
+          for a pairwise rating. Results under results/elo_duel/.
+  ffa  -- 3-player free-for-all (the original elo_tournament.py design): one
+          model solo vs two independent instances of the opponent, scored
+          against the better copy. A majority-hostile environment rather than
+          a duel. Results under results/elo/.
 
-Usage: python3 -m experiments.elo.run [--games-per-pair=4] [--dt=16] [--workers=10]
+Each unordered pair plays GAMES_PER_PAIR games, half with each model in the
+solo/first seat, with deterministic seeds. Ratings are fit by Bradley-Terry
+maximum likelihood (minorization-maximization) on the aggregate score matrix,
+then mapped to the Elo scale (1500 + 400*log10 p). Unlike sequential K-factor
+Elo, the result is independent of game order and exactly reproducible.
+
+Usage: python3 -m experiments.elo.run [--protocol=duel|ffa]
+           [--games-per-pair=4] [--dt=16] [--workers=10]
 """
 
 import math
@@ -37,11 +43,23 @@ BASE_SEED = 1000
 TIMEOUT_S = 300
 
 
-def run_game(solo, duo, seed, dt):
-    """Return (score_for_solo, ticks) or (None, None) on failure."""
-    pos = seed % 3
-    slots = [duo, duo, duo]
-    slots[pos] = solo
+def run_game(solo, duo, seed, dt, protocol):
+    """Return (score_for_solo, ticks) or (None, None) on failure.
+
+    duel: symmetric 1v1, side chosen by seed parity, winner by final node count.
+    ffa:  3-player free-for-all, solo vs two independent instances of duo,
+          scored against the better-performing copy.
+    """
+    if protocol == "duel":
+        n = 2
+        pos = seed % 2
+        slots = [duo, duo]
+        slots[pos] = solo
+    else:
+        n = 3
+        pos = seed % 3
+        slots = [duo, duo, duo]
+        slots[pos] = solo
     cmd = [str(BUILD_DIR / "crisky_headless"), str(seed), str(MAX_TICKS)] + slots + [f"--dt={dt}"]
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S).stdout
@@ -53,8 +71,8 @@ def run_game(solo, duo, seed, dt):
             nodes = {int(m.group(1)): int(m.group(2))
                      for m in re.finditer(r"P(\d): \d+ troops, (\d+) nodes", line)}
             solo_n = nodes.get(pos, 0)
-            duo_best = max((nodes.get(i, 0) for i in range(3) if i != pos), default=0)
-            score = 1.0 if solo_n > duo_best else (0.0 if solo_n < duo_best else 0.5)
+            opp_best = max((nodes.get(i, 0) for i in range(n) if i != pos), default=0)
+            score = 1.0 if solo_n > opp_best else (0.0 if solo_n < opp_best else 0.5)
             return score, ticks
     return None, None
 
@@ -75,7 +93,7 @@ def bradley_terry(models, score, count, iters=2000):
 
 
 def main():
-    games_per_pair, dt, workers = 4, 16, 10
+    games_per_pair, dt, workers, protocol = 4, 16, 10, "ffa"
     for arg in sys.argv[1:]:
         if arg.startswith("--games-per-pair="):
             games_per_pair = int(arg.split("=")[1])
@@ -83,12 +101,17 @@ def main():
             dt = int(arg.split("=")[1])
         elif arg.startswith("--workers="):
             workers = int(arg.split("=")[1])
+        elif arg.startswith("--protocol="):
+            protocol = arg.split("=")[1]
+            assert protocol in ("ffa", "duel")
 
-    outdir = results_dir("elo")
+    outdir = results_dir("elo" if protocol == "ffa" else "elo_duel")
     write_manifest(outdir, {
         "models": MODELS, "games_per_pair": games_per_pair, "dt": dt,
         "max_ticks": MAX_TICKS, "base_seed": BASE_SEED,
-        "protocol": "3-player solo-vs-duo, winner by final node count",
+        "protocol": ("3-player free-for-all, solo vs two independent copies, "
+                     "scored vs the better copy" if protocol == "ffa"
+                     else "symmetric 1v1, sides alternated, winner by final node count"),
     })
 
     pairs = [(a, b) for i, a in enumerate(MODELS) for b in MODELS[i + 1:]]
@@ -107,7 +130,8 @@ def main():
     count = defaultdict(lambda: defaultdict(int))
     done = 0
     with ProcessPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(run_game, s, d, sd, dt): (s, d, sd) for s, d, sd in jobs}
+        futures = {ex.submit(run_game, s, d, sd, dt, protocol): (s, d, sd)
+                   for s, d, sd in jobs}
         for f in as_completed(futures):
             solo, duo, sd = futures[f]
             sc, ticks = f.result()

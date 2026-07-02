@@ -12,8 +12,10 @@
 % Generated artifacts, relative to this file.
 \newcommand{\resultstable}[1]{\input{../results/#1}}
 \newcommand{\resultsfig}[1]{../results/#1}
-% Numbers computed by experiments/elo/hodge.py:
+% Numbers computed by experiments/elo/hodge.py and compare.py:
 \input{../results/elo/hodge_macros.tex}
+\input{../results/elo_duel/hodge_macros.tex}
+\input{../results/elo_duel/protocol_macros.tex}
 
 \title{CRisky: Empirical Benchmarks\\
   \large Scores and rankings for bots, economy, transport, ordering, and combat}
@@ -32,10 +34,12 @@ CRisky decomposes a real-time graph-strategy game into subproblems ---
 building, transport, combat --- each attacked by specialized solvers rather
 than end-to-end learning. This report makes that program empirical: every
 component with competing proposals gets a benchmark, a score, and a ranking.
-Bots are ranked by round-robin tournament under a Bradley--Terry model, and
-the tournament's pairwise structure is Hodge-decomposed to measure how
-transitive the game actually is (answer: \hodgetransitivity{} --- the
-remaining \hodgecurl{} is cyclic and invisible to any scalar rating). Economy,
+Bots are ranked by round-robin tournament under a Bradley--Terry model ---
+symmetric 1v1 duels as the headline, a majority-hostile free-for-all as a
+second environment (the two agree, $\rho = \ffaduelspearman$) --- and the
+pairwise structure is Hodge-decomposed to measure how transitive the game
+actually is (answer: \hodgetransitivityduel{} in duels --- the remaining
+\hodgecurlduel{} is cyclic and invisible to any scalar rating). Economy,
 transport, and ordering solvers are ranked in their gyms. Sweeping rankings
 are paired with single-game case studies, including a controlled
 counterfactual that isolates the \code{v11} regression. All numbers and
@@ -100,8 +104,9 @@ confidence intervals; each section notes what a longer run would sharpen.
     netting; instrument the OT demands in a stalling game to confirm the
     starvation mechanism.
   \item \textbf{Scale the ladder.} Four games per pair separates tiers, not
-    neighbors; the harness is deterministic and parallel, and the Hodge
-    analysis re-runs on any extended log at no extra game cost.
+    neighbors --- the duel podium is an exact three-way tie
+    (\S\ref{sec:elo-ladder}). The harness is deterministic and parallel, and
+    the Hodge analysis re-runs on any extended log at no extra game cost.
   \item \textbf{\code{path\_end} anomaly.} Both transport solvers plateau
     identically (Figure~\ref{fig:transport-curves}); point
     \code{gym\_transport\_diag} at it.
