@@ -81,7 +81,7 @@ splits.}
 
 The podium's head-to-head structure cycles under both protocols; a replay
 makes it concrete. Figure~\ref{fig:v9v8} replays FFA tournament game 1272
-(\code{v8} solo vs.\ two independent \code{v9}). The game is decided almost
+(\code{v8} in the test seat vs.\ two independent \code{v9}). The game is decided almost
 immediately: \code{v8} expands fastest off the start --- peaking near 75
 nodes by tick 250 --- but is torn apart in the first contact wars and
 eliminated by tick $\sim$600. Everything after is the two \code{v9} seats
@@ -98,7 +98,7 @@ pressure from two OT-supplied fronts: the cycle is real, and it turns on
 \centering
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v9_beats_v8.pdf}}
 \caption{FFA tournament game 1272 replayed. All three curves are the three
-players of this \emph{single} game: \code{v8} in the solo seat (blue) and the
+players of this \emph{single} game: \code{v8} in the test seat (blue) and the
 two independent \code{v9} instances (green, solid/dashed). Left: total
 troops; right: nodes held. After \code{v8}'s elimination the remaining
 dynamics are the two \code{v9} seats fighting each other.}
@@ -137,20 +137,19 @@ Two of three edges confirm the theory --- rock sweeps scissors 12/12
 (steamroll), paper sweeps rock 12/12 (defender's advantage) --- but the
 linchpin edge fails: \textbf{paper also sweeps scissors 12/12, so there is
 no cycle; border-stacking dominates}. The diagnosis is mechanical: in the
-current rules, garrisoned troops have \emph{no opportunity cost} --- they
+current rules, parked troops cost \emph{nothing} --- they
 are not consumed, do not decay, and do not reduce production --- so
-``resources more efficiently allocated to building'' never cashes out. (One
-implementation caveat: \code{war\_pool\_weight} scales the distribution pull
-toward fronts but not the war agent's \emph{direct} attack commands, so
-\code{arch\_paper} still attacks opportunistically; a clean test of
-``defensive but distrustful'' wants an attack-suppression knob.)
+``resources more efficiently allocated to building'' never cashes out. (One caveat: our paper archetype
+still launches attacks when it sees a guaranteed win --- the knob we turned
+down governs where troops gather, not whether attacks fire --- so a purist
+test awaits an attack-suppression switch.)
 
 This closes the section's arc, and ties the report's threads together. The
 posture wheel is two-thirds real, and its missing edge is a statement about
 the \emph{game}, not the bots: standing armies are free. The same fact
-appears twice more in this report --- the frontline garrison is what rescues
+appears twice more in this report --- the border reserve is what rescues
 \code{v11} into \code{v12} (\S\ref{sec:elo-v11}), and what sweeps the
-corridor battery (\S\ref{sec:combat}). Under the current rules,
+corridor map (\S\ref{sec:combat}). Under the current rules,
 border-stacking is simply the dominant posture; give garrisons a cost
 (upkeep, or production diverted) and the RPS wheel plausibly activates
 (\S\ref{sec:open}). The intransitivity that exists \emph{today} lives

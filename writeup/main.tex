@@ -31,60 +31,48 @@
 \maketitle
 
 \begin{abstract}
-CRisky decomposes a real-time graph-strategy game into subproblems ---
-building, transport, combat --- each attacked by specialized solvers rather
-than end-to-end learning. This report makes that program empirical, and is
-organized around four questions. \emph{Who wins?} A round-robin
-Bradley--Terry ladder (symmetric duels, with a free-for-all as a second
-environment; the two agree, $\rho = \ffaduelspearman$). \emph{How much can
-any ranking capture?} Hodge decomposition of the pairwise structure:
-\hodgetransitivityduel{} is transitive, and the cyclic remainder concentrates
-in a single posture-organized cycle --- a rock-paper-scissors hypothesis
-about its mechanism is tested with controlled archetypes and traced to a
-game-design fact (standing armies are free). \emph{Are the component solvers
-pulling their weight?} Gym rankings for economy, transport, and ordering,
-read as diagnostics rather than objectives. \emph{What did benchmarking
-teach us about the game itself?} A recurring set of mechanics --- early-war
-decisiveness, free garrisons, load-dependent transit --- that the closing
-section collects. Sweeping rankings are paired with single-game case
-studies throughout, including a controlled counterfactual that isolates a
-one-feature regression. All numbers and figures are generated artifacts,
-reproducible from committed manifests.
+CRisky is a real-time strategy game on graphs, and a family of bots that play
+it by decomposing the game into solvable pieces. This report benchmarks all
+of it. It asks four questions: which bot is strongest (a round-robin
+tournament with proper ratings); how much of the game any rating can capture
+(about four-fifths --- the rest is rock-paper-scissors-like cycles, which we
+locate and probe with controlled experiments); whether the component solvers
+--- economy, transport, ordering, combat --- earn their keep in isolation;
+and what the benchmarks reveal about the game itself (three mechanics with
+design consequences). Statistics are paired with replayed single games
+throughout, and every number regenerates from committed code, seeds, and
+manifests.
 \end{abstract}
 
 \section{Introduction}
-\label{sec:method}
+\label{sec:intro}
 
-This report asks four questions, one per section. \S\ref{sec:elo}: which bot
-is strongest, under a rating that is defensible? \S\ref{sec:transitivity}:
-how much of this game can \emph{any} scalar rating capture --- and what
-generates the part it cannot? \S\ref{sec:components}: within each engine
-component (economy, transport, ordering, combat), which of the competing
-solvers wins its gym? \S\ref{sec:findings}: collected findings --- about the
-bots, about the game's mechanics, and about the benchmarks themselves ---
-with the queued next steps.
+This report answers four questions, one per section:
 
-Two habits run through all of it. First, every sweeping statistic is paired
-with a zoom-in: single games, replayed by seed from the tournament logs, so
-the anecdotes are drawn from the same population as the statistics. Second,
-gym scores are treated as \emph{diagnostics}, never as the objective --- the
-ladder is the only ground truth, and the places where a gym and the ladder
-disagree turn out to be the most informative results in the report.
+\begin{enumerate}
+  \item \textbf{Which bot is strongest?} (\S\ref{sec:elo}) A tournament and a
+    defensible rating.
+  \item \textbf{How much can a rating capture?} (\S\ref{sec:transitivity})
+    Ratings assume ``better'' is one-dimensional; we measure how true that is
+    here, find the cycles that break it, and test a theory of why they exist.
+  \item \textbf{Do the component solvers earn their keep?}
+    (\S\ref{sec:components}) Each engine component --- economy, transport,
+    ordering, combat --- has competing solvers; each gets a score and a
+    ranking.
+  \item \textbf{What did we learn about the game itself?}
+    (\S\ref{sec:findings}) Benchmarking kept surfacing facts about the
+    \emph{rules} rather than the bots; the closing section collects them,
+    with next steps.
+\end{enumerate}
 
-\paragraph{Reproducibility.} The infrastructure is a three-way decomposition
-at the repository root, each stratified by experiment:
-\code{experiments/<name>/run.py} is the experiment definition (fixed solver
-lists, seed bases, protocol; invoked as
-\code{python3 -m experiments.<name>.run}, with companion \code{plot.py} and
-analysis scripts that regenerate figures from raw data without re-running
-games); \code{results/<name>/} holds the machine-produced artifacts
-(\code{manifest.json} with git SHA, UTC date, exact command, and parameters;
-\code{raw/*.csv} with every individual game; \code{summary.csv};
-\code{tables/*.tex}; \code{figures/*.pdf}, all included by this document
-directly); \code{writeup/} is this document. Reproducing any table or figure
-is: check out the SHA in the manifest, build, re-run the module. This round
-is a \emph{quick pass}: game counts give stable rankings in minutes, not
-tight confidence intervals.
+Everything the report assumes --- how the game works, how the bots decide,
+who the thirteen bots are, and how the ratings are computed --- is in
+\S\ref{sec:background}. If a term is unclear anywhere, its definition is
+there.
+
+\section{Background and methodology}
+\label{sec:background}
+\input{background}
 
 \section{The ladder: who wins?}
 \label{sec:elo}
@@ -98,11 +86,10 @@ tight confidence intervals.
 \label{sec:components}
 
 Each engine component has competing solver proposals; each gets a gym, a
-score, and a ranking. A reminder before the tables: these are
-\emph{component} metrics, useful for ordering proposals within a subsystem
-and for catching regressions cheaply --- they are not the objective. This
-section contains two deliberate demonstrations of the gap: the economy gym's
-best objective powers weaker bots than its worst-but-one
+score, and a ranking. Reminder from \S\ref{sec:bg-instruments}: gym scores
+are diagnostics for ordering proposals within a component, not the
+objective. This section contains two deliberate demonstrations of the gap:
+the economy gym's best layout objective powers weaker bots than a worse one
 (\S\ref{sec:economy}), and the combat battery's control row shows the maps
 themselves carry more signal than most matchups (\S\ref{sec:combat}).
 
@@ -117,50 +104,50 @@ themselves carry more signal than most matchups (\S\ref{sec:combat}).
 
 \paragraph{About the bots.}
 \begin{enumerate}
-  \item \textbf{Build the missing bot.} \code{v8}'s distance softmax and
-    \code{v12}'s OT transport are orthogonal strengths at the top of the
-    ladder; their combination is unexplored (\S\ref{sec:elo-ladder}).
-  \item \textbf{Diagnose \code{v11} before trusting demand netting.} The
-    counterfactual of \S\ref{sec:elo-v11} isolates the regression to
-    effective-troops netting; instrument the OT demands in a replayed
-    stalling game to confirm the starvation mechanism.
-  \item \textbf{Scale the ladder.} Four games per pair separates tiers, not
-    neighbors --- the duel podium is an exact three-way tie. The harness is
-    deterministic and parallel, and the Hodge/cycle analyses re-run on any
-    extended log at no extra game cost.
+  \item \textbf{Build the missing bot.} \code{v8}'s local softmax and
+    \code{v12}'s OT transport are the two strongest single features, they
+    are compatible, and no bot has both (\S\ref{sec:elo-ladder}).
+  \item \textbf{Confirm the \code{v11} diagnosis before reusing its
+    feature.} The replay experiment of \S\ref{sec:elo-v11} pins the ladder
+    collapse on ``stop requesting once help is on the way''; the proposed
+    mechanism (nodes under attack go silent) should be confirmed by logging
+    per-node requests in a replayed loss.
+  \item \textbf{Scale the tournament.} Four games per pairing separates
+    tiers, not neighbors --- the podium is an exact three-way tie. The
+    harness is deterministic and parallel, and all analyses re-run on an
+    extended log at no extra cost.
 \end{enumerate}
 
-\paragraph{About the game.} Three mechanics surfaced as side effects of
-benchmarking, and each suggests a design lever:
+\paragraph{About the game.} Three rule-level facts surfaced as side effects
+of benchmarking, each with a design lever:
 \begin{enumerate}
   \setcounter{enumi}{3}
-  \item \textbf{Standing armies are free}, so border-stacking dominates every
-    other posture (\S\ref{sec:elo-rps}) and the frontline garrison decides
-    ladder ranks and battery maps alike. Garrison upkeep --- or production
-    diverted to supply --- would activate the posture rock-paper-scissors
-    that is currently two-thirds real; an attack-suppression knob in
-    ModelConfig would make it cleanly testable.
-  \item \textbf{Large groups freeze} (speed $\propto 1/\text{count}$): the
-    \code{path\_end} staircase (\S\ref{sec:transport}) is a blob crawling to
-    a halt, the flows-over-time effect of \citet{koehler2002}. Confirm with
-    \code{gym\_transport\_diag}; any transport solver that splits mass into
-    convoys would exploit the mechanic rather than suffer it.
-  \item \textbf{Games are decided in the first thousand ticks}: every case
-    study is an early-war collapse, which is also why fast-payoff economies
+  \item \textbf{Parked troops are free.} Holding a large standing army costs
+    nothing, so the border reserve dominates every other posture
+    (\S\ref{sec:elo-rps}) and decides ladder ranks and battery maps alike.
+    An upkeep cost would make the posture rock-paper-scissors --- currently
+    two-thirds real --- live.
+  \item \textbf{Large groups freeze.} Group speed falls with size, so a big
+    blob can become effectively stationary: the \code{path\_end} staircase
+    (\S\ref{sec:transport}) is exactly this, the flows-over-time effect of
+    \citet{koehler2002}. A transport solver that splits mass into convoys
+    would exploit the mechanic rather than suffer it.
+  \item \textbf{Games are decided in the first thousand ticks.} Every case
+    study is an early-war collapse; this is also why fast-payoff economies
     beat gym-optimal ones (\S\ref{sec:economy}).
 \end{enumerate}
 
 \paragraph{About the benchmarks.}
 \begin{enumerate}
   \setcounter{enumi}{6}
-  \item \textbf{Symmetrize the combat battery} --- the \code{v4} self-play
-    control shows a decisive player-1 map bias (\S\ref{sec:combat}); play
-    both slots per matchup.
+  \item \textbf{Symmetrize the combat battery} --- the self-play control
+    shows a decisive second-player advantage on every map
+    (\S\ref{sec:combat}); play both seats per matchup.
   \item \textbf{Replace the ordering metric} --- accumulated production
-    cannot separate orderings (\S\ref{sec:ordering}); use the discounted
-    objective $\int e^{-\lambda t}P(t)\,dt$.
+    cannot separate orderings (\S\ref{sec:ordering}); discount it:
+    $\int e^{-\lambda t}P(t)\,dt$.
   \item \textbf{Keep reading gym scores as diagnostics} --- the
-    factory-biased paradox (\S\ref{sec:economy}) is the standing reminder.
+    factory-bias paradox (\S\ref{sec:economy}) is the standing reminder.
 \end{enumerate}
 
 \bibliographystyle{plainnat}

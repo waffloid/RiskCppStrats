@@ -1,6 +1,6 @@
 {
-  "git_sha": "b18f4a1427c5e35b250f32a698eb5c7d5371247d",
-  "date_utc": "2026-07-02T15:02:53.769592+00:00",
+  "git_sha": "3a011e505c4065733010d6c387e05df560e49027",
+  "date_utc": "2026-07-02T16:34:10.582402+00:00",
   "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/case_studies/run.py",
   "python": "3.14.5",
   "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
@@ -10,6 +10,11 @@
         "v8",
         "v9",
         1272
+      ],
+      "v10_baseline": [
+        "v10",
+        "v10",
+        1301
       ],
       "v11_stall": [
         "v11",

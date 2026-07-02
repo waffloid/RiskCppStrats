@@ -27,6 +27,7 @@ MAX_TICKS = 5000
 # substituted into the identical map and slot -- a single-variable comparison.
 CASES = {
     "v9_beats_v8": ("v8", "v9", 1272),
+    "v10_baseline": ("v10", "v10", 1301),
     "v11_stall": ("v11", "v10", 1301),
     "v12_counterfactual": ("v12", "v10", 1301),
 }
@@ -52,11 +53,12 @@ def plot_case(name, solo, duo, pos, ticks, outpath):
     fig, axes = plt.subplots(1, 2, figsize=(7.4, 2.7))
     for ax, key, label in zip(axes, ["troops", "nodes"], ["Troops", "Nodes held"]):
         duo_ids = [i for i in range(3) if i != pos]
-        # entity = model: solo gets slot-1 blue, both duo copies slot-2 aqua
-        ax.plot(xs, series(pos, key), color=PALETTE[0], label=f"{solo} (solo)")
-        ax.plot(xs, series(duo_ids[0], key), color=PALETTE[1], label=f"{duo} (a)")
+        # entity = model: test seat gets slot-1 blue, both opponents slot-2 aqua
+        ax.plot(xs, series(pos, key), color=PALETTE[0], label=f"{solo} (test seat)")
+        ax.plot(xs, series(duo_ids[0], key), color=PALETTE[1],
+                label=f"{duo} (opponent a)")
         ax.plot(xs, series(duo_ids[1], key), color=PALETTE[1], linestyle="--",
-                label=f"{duo} (b)")
+                label=f"{duo} (opponent b)")
         ax.set_xlabel("tick")
         ax.set_ylabel(label)
         style_axes(ax)

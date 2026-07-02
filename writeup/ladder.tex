@@ -4,30 +4,24 @@
 \subsection{Protocol}
 \label{sec:elo-protocol}
 
-All registered models compete except \code{v2\_knapsack} and \code{v3}, which
-are code-identical to \code{v4}. Two protocols were run with the same
-harness, seeds, and game count (312 games each; four per unordered pair,
-sides alternated, deterministic seeds; logs under \code{results/elo\_duel/}
-and \code{results/elo/}):
+All thirteen models of Table~\ref{tab:lineage} compete. Two tournaments were
+run with the same harness, seeds, and size (312 games each; four per pairing,
+sides alternated, deterministic seeds):
 
 \begin{itemize}
-  \item \textbf{Duel} (headline): symmetric 1v1 on a fresh Poisson map;
-    winner by elimination, or by final node count at 5000 ticks. The standard
-    basis for a pairwise rating.
-  \item \textbf{Free-for-all} (secondary): three players --- one seat runs
-    model A (``solo''), two seats run \emph{independent, uncoordinated}
-    instances of model B; A scores against the better-performing copy. A
-    majority-hostile environment rather than a duel; kept because it carries
-    an internal control (copy vs.\ copy) and, as \S\ref{sec:elo-ladder}
-    shows, discriminates where the duel cannot.
+  \item \textbf{Duel} (headline): symmetric 1v1 on a fresh random map;
+    winner by elimination, or by node count at the 5000-tick limit. The
+    standard basis for a rating.
+  \item \textbf{Free-for-all} (secondary): three players --- the rated bot
+    in one seat, two \emph{independent, uncoordinated} copies of its
+    opponent in the others; the rated bot scores against the
+    better-performing copy. A deliberately hostile environment; kept because
+    it turns out to discriminate where the duel cannot.
 \end{itemize}
 
-Ratings are fit per protocol by maximum likelihood under a Bradley--Terry
-model \citep{bradleyterry1952} via minorization--maximization
-\citep{hunter2004} on the aggregate score matrix, then mapped onto the Elo
-scale ($1500 + 400\log_{10}p$) \citep{elo1978}. Unlike sequential K-factor
-updates, the fit is independent of game order and exactly reproducible from
-the logs.
+Ratings are the Bradley--Terry fit of \S\ref{sec:bg-rating}, computed per
+tournament from the logs under \code{results/elo\_duel/} and
+\code{results/elo/}.
 
 \subsection{The ranking}
 \label{sec:elo-ladder}
@@ -36,81 +30,99 @@ the logs.
 \centering
 \resultstable{elo_duel/tables/ladder_combined}
 \caption{The ladder under the duel protocol, with the free-for-all ranking
-alongside (Spearman $\rho = \ffaduelspearman$ between the two). Read in
-tiers: with four games per pair, small gaps are noise, and the extreme
-negative values at the bottom are Bradley--Terry scale artifacts of
-near-zero score rates.}
+alongside (the two agree: Spearman $\rho = \ffaduelspearman$). Read in
+tiers: with four games per pairing, small gaps are noise, and the extreme
+negative values at the bottom are scale artifacts of near-zero score rates.}
 \label{tab:elo}
 \end{table}
 
-The two protocols agree on every structural conclusion
-($\rho = \ffaduelspearman$): the same podium
-$\{\code{v8}, \code{v9}, \code{v12}\}$, the same \code{v11} crater at an
-identical 0.17 score rate, the same knapsack-era basement. Mid-table
-shuffles mildly --- \code{v0\_expansion} climbs to 4th in duels (pacifism
-does even better with no third party to punish it) while \code{v10} slips to
-8th. Four headlines:
+Both tournaments reach the same structural conclusions: the same podium
+$\{\code{v8}, \code{v9}, \code{v12}\}$, the same \code{v11} collapse at an
+identical 0.17 score rate, the same basement. Four headlines:
 
 \begin{enumerate}
   \item \textbf{The duel cannot separate the podium.} \code{v8}, \code{v9},
     and \code{v12} finish in an exact three-way tie (0.90 apiece): each
     crushes everything below and splits the games among themselves. The
-    free-for-all \emph{does} separate them (0.90/0.85/0.75) --- its
-    majority-hostile seat acts as an amplifier. This tie is not merely a
-    small-sample problem; \S\ref{sec:transitivity} shows the podium's
+    free-for-all \emph{does} separate them (0.90/0.85/0.75) --- being
+    outnumbered amplifies small differences. The tie is not just a
+    small-sample problem: \S\ref{sec:transitivity} shows the podium's
     head-to-head structure is genuinely cyclic.
-  \item \textbf{\code{v8} shares the top} --- and it is the \emph{only} model
-    using the distance-decayed local softmax, a branch abandoned when v9
-    pivoted to OT transport. Combining \code{v8}'s softmax with \code{v12}'s
-    transport remains the most obvious unexplored bot.
-  \item \textbf{\code{v11} is a regression under both protocols} (0.17 in
-    each, adrift from parent \code{v10} and child \code{v12}) --- dissected
-    next, in \S\ref{sec:elo-v11}.
-  \item \textbf{Pacifism is underrated}: \code{v0\_expansion}, which has no
-    war agent at all, is 4th in duels, above every pre-OT warrior; the
-    knapsack-era aggressors lose both tournaments outright.
+  \item \textbf{\code{v8} shares the top} using the one feature no later
+    model kept --- the local softmax (Table~\ref{tab:lineage}). The most
+    obvious unexplored bot is \code{v8}'s scoring plus \code{v12}'s
+    transport.
+  \item \textbf{\code{v11} collapsed, in both tournaments.} One feature
+    separates it from its parent and one from its child; the case study
+    below pins down which feature and why.
+  \item \textbf{Never attacking is a decent strategy.}
+    \code{v0\_expansion}, which has no war agent at all, ranks 4th in duels
+    --- above every pre-OT model that fights. The eager attackers
+    (\code{v1\_knapsack} and its hybrid) lose both tournaments outright.
 \end{enumerate}
 
-\subsection{Case study: the \code{v11} regression, with counterfactual}
+\subsection{Case study: the one-feature collapse of \code{v11}}
 \label{sec:elo-v11}
 
-A ladder can flag an anomaly but not explain it; this is what the replay
-tooling is for. \code{v11} differs from \code{v10} by exactly one feature:
-OT demands are netted against \emph{effective} (in-transit-inclusive) troop
-counts. Figure~\ref{fig:v11} replays FFA tournament game 1301, which
-\code{v11} lost, and then replays the \emph{same seed, same map, same slot,
-same opponents} with \code{v12} substituted --- a single-variable
-comparison, since \code{v12} is \code{v11} plus a standing
-frontline-garrison demand.
+The ladder's strangest datum: \code{v11} sits hundreds of Elo below both its
+parent \code{v10} and its child \code{v12}. The lineage
+(Table~\ref{tab:lineage}) makes this a controlled puzzle, because each step
+is a single feature:
 
-The contrast is stark. In the tournament game, \code{v11}'s trajectory is
-nearly indistinguishable from the \emph{losing} \code{v10} copy --- both
-expand to $\sim$100 nodes by tick 300 and are wiped out by tick 1000 while
-the surviving \code{v10} sweeps the map. \code{v11} does not exhibit a
-visibly pathological curve; it simply fights like a mid-tier bot and loses.
-But substitute \code{v12} into the identical position and the same game is a
-rout \emph{in the other direction}: all 347 nodes by tick 1000, both
-\code{v10} copies dead by tick 900. One added demand term converts this map
-from a loss into total domination, and in aggregate from a 0.17 score rate
-to 0.75. The mechanism this implicates --- with netting alone, arriving
-reinforcements cancel the very demands that summoned them, so contested
-nodes stop pulling troops exactly when they need them, while \code{v12}'s
-standing garrison demand keeps the pull alive --- fits the aggregate, the
-counterfactual, and the protocol-independence of the 0.17, but remains a
-hypothesis until the OT demands are instrumented directly in a replayed game
-(\S\ref{sec:open}). Note for later: this is the first of three places the
-frontline garrison will turn out to be decisive.
+\begin{itemize}
+  \item \code{v10} $\to$ \code{v11}: nodes stop requesting troops once help
+    is on the way (troops en route count as delivered).
+  \item \code{v11} $\to$ \code{v12}: border nodes additionally keep an
+    always-on request --- the border reserve.
+\end{itemize}
+
+\paragraph{The experiment.} Games are deterministic given a seed, so we can
+re-run a real tournament game and change nothing but the bot in one seat.
+We take FFA game 1301 --- a map where \code{v11}, facing two \code{v10}s,
+was destroyed --- and play it three times, once per lineage step, always in
+the same seat against the same opponents. Figure~\ref{fig:v11} shows one
+game per row; in every row, blue is the bot under test and green the two
+\code{v10} opponents.
+
+\paragraph{What happens.}
+\begin{itemize}
+  \item \textbf{\code{v10} in the seat (top row):} survives to the time
+    limit holding about a quarter of the map. The seat is playable.
+  \item \textbf{\code{v11} in the seat (middle row):} wiped out by tick
+    1000. Its curve is indistinguishable from the \emph{losing} \code{v10}
+    opponent's --- it doesn't malfunction visibly, it just loses.
+  \item \textbf{\code{v12} in the seat (bottom row):} owns the entire map by
+    tick 1000, both opponents dead.
+\end{itemize}
+
+Same map, same opponents, one feature per step: switching on
+``stop requesting once help is on the way'' turns a playable position into a
+loss, and adding the border reserve turns the same position into total
+domination. The tournament aggregates match (score rates 0.65 / 0.17 /
+0.75).
+
+\paragraph{Why would such an innocuous feature be catastrophic?} Our working
+hypothesis: a node under attack needs a \emph{continuous stream} of
+reinforcements, but the moment the first ones are dispatched, its request
+counts as filled and it goes silent --- so contested nodes stop calling for
+help precisely while they are being ground down. The border reserve never
+goes silent, which is why \code{v12} recovers. This fits the replay, the
+aggregate, and the fact that the collapse is identical under both
+tournament protocols --- but it is a hypothesis, not yet an observation.
+The direct check (log each node's requests during a replayed loss) is
+queued in \S\ref{sec:open}. Keep the border reserve in mind: this is the
+first of three places it proves decisive
+(\S\ref{sec:elo-rps}, \S\ref{sec:combat} are the others).
 
 \begin{figure}[ht]
 \centering
+\includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v10_baseline.pdf}}\\[2pt]
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v11_stall.pdf}}\\[2pt]
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v12_counterfactual.pdf}}
-\caption{Controlled counterfactual on FFA tournament seed 1301: two separate
-games, one per row, each row showing all three players of that game. Top:
-the tournament game --- \code{v11} in the solo seat (blue) vs.\ two
-independent \code{v10} instances (green); \code{v11} and one \code{v10} are
-both destroyed by the other \code{v10}. Bottom: a replay with \code{v12}
-substituted into the identical seat --- a rout in the other direction. The
-only delta between the two solo models is the frontline-garrison demand.}
+\caption{One tournament game (seed 1301), played three times; only the bot
+in the test seat (blue) changes between rows. Top: \code{v10} --- survives
+to the time limit. Middle: \code{v11} --- destroyed by tick 1000. Bottom:
+\code{v12} --- takes the whole map by tick 1000. Left panels: total troops;
+right panels: nodes held.}
 \label{fig:v11}
 \end{figure}

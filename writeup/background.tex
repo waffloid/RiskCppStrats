@@ -1,0 +1,140 @@
+% Background & methodology: everything the rest of the report assumes.
+
+This section is the vocabulary for the rest of the report. It explains how
+the game works, how the bots decide, what distinguishes each bot version,
+and how we score things --- so that later sections can say what happened
+without stopping to define terms.
+
+\subsection{The game, in one paragraph}
+\label{sec:bg-game}
+
+Players compete for territory on a random graph. Every node can hold troops;
+nodes with factories produce troops each tick, and powerplants boost
+adjacent factories. Troops travel along edges (large groups move slowly),
+and when opposing troops meet at a node they grind each other down until one
+side is gone. A player loses when they have no troops left. There is no
+diplomacy and no fog of war: the entire state is visible to everyone.
+
+\subsection{How the bots decide}
+\label{sec:bg-bots}
+
+Every bot in this report has the same skeleton, with three stages each tick:
+
+\begin{enumerate}
+  \item \textbf{Score.} A few sub-agents each score every node for how much
+    they would like troops there: the \emph{economy} agent scores nodes it
+    plans to build on, the \emph{expansion} agent scores capturable border
+    nodes, the \emph{war} agent scores enemy-adjacent nodes. The scores are
+    blended into a single target: ``here is the fraction of my army I want
+    at each node.''
+  \item \textbf{Move.} A transport solver turns the gap between where troops
+    are and where the target wants them into actual move orders. Older bots
+    nudge troops downhill along a smoothed version of this gap
+    (\emph{gradient transport}); newer bots solve a routing problem that
+    assigns each surplus troop a destination and a cheapest path
+    (\emph{OT transport}, for optimal transport).
+  \item \textbf{Act directly.} Some decisions bypass the target-and-move
+    machinery: the economy agent places a building the moment a node can
+    afford it, and the war agent launches an attack the moment the
+    neighborhood can overwhelm a target.
+\end{enumerate}
+
+Two terms recur constantly, so we fix them here:
+
+\begin{description}
+  \item[Request.] Under OT transport, each node asks for a specific number
+    of troops (``I need 40 more''), and the solver routes troops to fill
+    requests. The target distribution of stage 1 is expressed through these
+    requests.
+  \item[Border reserve.] An always-on request at nodes that touch enemy
+    territory: keep enough troops here to outnumber the largest adjacent
+    enemy force. Informally: park a standing army on the border. (The code
+    calls this the \emph{frontline garrison}.)
+\end{description}
+
+\subsection{The bot lineage}
+\label{sec:bg-lineage}
+
+Thirteen versions compete. Each is one deliberate change over its
+predecessor; reading this table is enough to follow every result in the
+report.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\toprule
+Model & What changed \\
+\midrule
+\code{v0\_expansion}      & Baseline: economy + expansion only. Never attacks. \\
+\code{v1\_knapsack}       & Adds a war agent (and drops expansion): attack \\
+                          & whenever value-per-cost looks good. \\
+\code{v1\_knapsack\_hybrid} & All three agents, expansion at half weight. \\
+\code{v4}                 & Simpler, better war agent; the long-time default. \\
+\code{v5\_qubo}           & Build layout chosen by an annealed solver. \\
+\code{v6}                 & Same, with the layout biased toward factories. \\
+\code{v7}                 & Stops expanding while behind on construction. \\
+\code{v8}                 & Softmax over node scores becomes \emph{local}: \\
+                          & troops compete for nearby targets, not global ones. \\
+\code{v9}                 & Switches gradient transport for OT transport. \\
+\code{v10}                & = v9 + v7's construction discipline. \\
+\code{v11}                & Requests subtract troops already \emph{en route}: \\
+                          & a node stops asking once help is on the way. \\
+\code{v12}                & = v11 + the border reserve. \\
+\bottomrule
+\end{tabular}
+\caption{One line per model. (\code{v2}/\code{v3} are code-identical to
+\code{v4} and excluded; \code{v5\_qubo\_composite} is a \code{v5} variant
+with a blended layout objective.)}
+\label{tab:lineage}
+\end{table}
+
+\subsection{How we rate bots}
+\label{sec:bg-rating}
+
+Bots play round-robin tournaments (fixed seeds, both sides of every
+matchup). To turn game results into a ranking we fit a Bradley--Terry model
+\citep{bradleyterry1952}: assume each bot $i$ has a strength $p_i$ and that
+$i$ beats $j$ with probability $p_i/(p_i+p_j)$, then find the strengths that
+make the observed results most likely \citep{hunter2004}. We report
+strengths on the familiar Elo scale \citep{elo1978}. This differs from
+chess-style Elo updates only in being fit to the whole tournament at once:
+the result does not depend on game order and is exactly reproducible from
+the game log.
+
+A one-number rating assumes strength is one-dimensional --- that if A
+usually beats B and B usually beats C, then A usually beats C. That
+assumption can fail (rock--paper--scissors), and \S\ref{sec:transitivity}
+measures \emph{how much} it fails here: the tournament's pairwise results
+are split into a part explainable by some ranking and a leftover made of
+cycles (the Hodge decomposition of \citealp{jiang2011}), and the cycles are
+then mapped out \citep{balduzzi2019}. The mathematics lives in
+\S\ref{sec:transitivity}; nothing there is needed to read the ladder.
+
+\subsection{Instruments}
+\label{sec:bg-instruments}
+
+Three kinds of evidence appear throughout:
+
+\begin{itemize}
+  \item \textbf{Tournaments} rate whole bots (\S\ref{sec:elo},
+    \S\ref{sec:transitivity}).
+  \item \textbf{Gyms} score a single component --- economy, transport,
+    ordering, combat --- in isolation, on synthetic instances
+    (\S\ref{sec:components}). Gym scores are diagnostics: twice in this
+    report a gym and the ladder disagree, and both disagreements are
+    informative.
+  \item \textbf{Replays} re-run a specific game from its seed, optionally
+    with one bot swapped, to explain \emph{why} a number is what it is.
+    Because games are deterministic given a seed, a replay with one bot
+    changed is a controlled experiment.
+\end{itemize}
+
+\paragraph{Reproducibility.} Experiments live in
+\code{experiments/<name>/run.py} (fixed seeds and solver lists; run as
+\code{python3 -m experiments.<name>.run}). Each writes
+\code{results/<name>/}: a \code{manifest.json} recording the git SHA, date,
+command, and parameters; raw per-game CSVs; and the summary tables and
+figures this document includes directly. To reproduce any number: check out
+the SHA in the manifest, build, re-run the module. This round is a quick
+pass --- game counts give stable rankings in minutes, not tight confidence
+intervals.
