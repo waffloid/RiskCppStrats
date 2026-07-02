@@ -5,13 +5,18 @@
 
 Full-game strength is the ground truth that every other section proxies. All
 registered models compete except \code{v2\_knapsack} and \code{v3}, which are
-code-identical to \code{v4}. Each game is three-player on a fresh Poisson map:
-one model plays \emph{solo} against two copies of its opponent and scores 1 if
-it holds strictly more nodes when the game ends (elimination or 5000 ticks),
-$\tfrac12$ on a tie. The 1-vs-2 protocol is deliberately hostile --- surviving
-a coordinated majority is a stronger signal than a symmetric duel at these
-game counts. Each unordered pair plays four games, half solo on each side,
-with deterministic seeds; the full log is \code{results/elo/raw/games.csv}.
+code-identical to \code{v4}. Each game is a three-player \emph{free-for-all}
+on a fresh Poisson map: one seat runs model A (labeled ``solo'') and the other
+two seats run \emph{independent} instances of model B --- not a team; the
+copies share no state, do not coordinate, and fight each other as readily as
+they fight A. Model A scores 1 if it holds strictly more nodes at game end
+(elimination or 5000 ticks) than the \emph{better-performing} of the two B
+copies, $\tfrac12$ on a tie. Duplicating the opponent gives every game an
+internal baseline (copy vs.\ copy on the same map) and makes the environment
+majority-hostile to the rated model, which separates models faster than a
+symmetric duel at these game counts. Each unordered pair plays four games,
+half with each model in the solo seat, with deterministic seeds; the full log
+is \code{results/elo/raw/games.csv}.
 
 Ratings are fit by maximum likelihood under a Bradley--Terry model
 \citep{bradleyterry1952} via minorization--maximization \citep{hunter2004} on
@@ -107,8 +112,11 @@ simultaneous pressure from two OT-supplied fronts on this map.
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v9_beats_v8.pdf}}
-\caption{Tournament game 1272 replayed: \code{v8} solo (blue) vs.\ two
-\code{v9} copies (green, solid/dashed). Left: total troops; right: nodes held.}
+\caption{Tournament game 1272 replayed. All three curves are the three
+players of this \emph{single} game: \code{v8} in the solo seat (blue) and the
+two independent \code{v9} instances (green, solid/dashed). Left: total
+troops; right: nodes held. After \code{v8}'s elimination the remaining
+dynamics are the two \code{v9} seats fighting each other.}
 \label{fig:v9v8}
 \end{figure}
 
@@ -142,9 +150,12 @@ directly in a replayed game (\S\ref{sec:open}, item 2).
 \centering
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v11_stall.pdf}}\\[2pt]
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v12_counterfactual.pdf}}
-\caption{Controlled counterfactual on tournament seed 1301. Top: \code{v11}
-solo (blue) vs.\ two \code{v10} (green) --- the tournament game, a loss.
-Bottom: \code{v12} in the identical slot --- a rout in the other direction.
-The only delta between the two solo models is the frontline-garrison demand.}
+\caption{Controlled counterfactual on tournament seed 1301: two separate
+games, one per row, each row showing all three players of that game. Top:
+the tournament game --- \code{v11} in the solo seat (blue) vs.\ two
+independent \code{v10} instances (green); \code{v11} and one \code{v10} are
+both destroyed by the other \code{v10}. Bottom: a replay with \code{v12}
+substituted into the identical seat --- a rout in the other direction. The
+only delta between the two solo models is the frontline-garrison demand.}
 \label{fig:v11}
 \end{figure}
