@@ -1,168 +1,187 @@
 % Background & methodology: everything the rest of the report assumes.
 
-This section is the vocabulary for the rest of the report. It explains how
-the game works, how the bots decide, what distinguishes each bot version,
-and how we score things --- so that later sections can say what happened
-without stopping to define terms.
+This section is the vocabulary for the rest of the report: how the game
+works, how the bots decide, who the thirteen bots are --- one model at a
+time, introducing each idea where the lineage first needed it --- and how we
+score things.
 
 \subsection{The game, in one paragraph}
 \label{sec:bg-game}
 
-Players compete for territory on a random graph. Every node can hold troops;
-nodes with factories produce troops each tick, and powerplants boost
-adjacent factories. Troops travel along edges (large groups move slowly),
-and when opposing troops meet at a node they grind each other down until one
-side is gone. A player loses when they have no troops left. There is no
-diplomacy and no fog of war: the entire state is visible to everyone.
+Players compete for territory on a random geometric graph --- scattered
+points joined to their near neighbors, so the map is mesh-like: triangles
+everywhere, small dense pockets, no long corridors unless generated on
+purpose. Every node can hold troops; nodes with factories produce troops
+each tick, and powerplants boost adjacent factories. Troops travel along
+edges (large groups move slowly), and when opposing troops meet at a node
+they grind each other down until one side is gone. A player loses when they
+have no troops left. There is no diplomacy and no fog of war: the entire
+state is visible to everyone.
 
-\subsection{How the bots decide}
+\subsection{How every bot decides}
 \label{sec:bg-bots}
 
-Every bot in this report has the same skeleton, with three stages each tick:
+All thirteen bots share one skeleton, three stages per tick:
 
 \begin{enumerate}
   \item \textbf{Score.} A few sub-agents each score every node for how much
     they would like troops there: the \emph{economy} agent scores nodes it
     plans to build on, the \emph{expansion} agent scores capturable border
-    nodes, the \emph{war} agent scores enemy-adjacent nodes. The scores are
-    blended into a single target: ``here is the fraction of my army I want
-    at each node.''
+    nodes, the \emph{war} agent scores enemy-adjacent nodes. The scores
+    blend into a single target: ``here is the fraction of my army I want at
+    each node.''
   \item \textbf{Move.} A transport solver turns the gap between where troops
-    are and where the target wants them into actual move orders. Older bots
-    nudge troops downhill along a smoothed version of this gap
-    (\emph{gradient transport}); newer bots solve a routing problem that
-    assigns each surplus troop a destination and a cheapest path
-    (\emph{OT transport}, for optimal transport).
+    are and where the target wants them into move orders.
   \item \textbf{Act directly.} Some decisions bypass the target-and-move
     machinery: the economy agent places a building the moment a node can
     afford it, and the war agent launches an attack the moment the
     neighborhood can overwhelm a target.
 \end{enumerate}
 
-Two terms recur constantly, so we fix them here:
+What distinguishes the models is which agents run, how scores become
+targets, and which solver moves the troops. That is the story of the
+lineage.
 
-\begin{description}
-  \item[Request.] Under OT transport, each node asks for a specific number
-    of troops (``I need 40 more''), and the solver routes troops to fill
-    requests. The target distribution of stage 1 is expressed through these
-    requests.
-  \item[Border reserve.] An always-on request at nodes that touch enemy
-    territory: keep enough troops here to outnumber the largest adjacent
-    enemy force. Informally: park a standing army on the border. (The code
-    calls this the \emph{frontline garrison}.)
-\end{description}
+\subsection{The models, one at a time}
+\label{sec:bg-lineage}
 
-\subsection{The ideas inside the components}
-\label{sec:bg-ideas}
+The lineage reads best as an \emph{ablation study}: each model adds
+(approximately) one layer of capability to its predecessor, so consecutive
+models measure the marginal value of one idea --- a structure
+\S\ref{sec:elo-ablation} later turns directly into numbers. This walk
+introduces each idea where it first appears; Table~\ref{tab:lineage} at the
+end is the recap card.
 
-The lineage below names four ideas --- knapsack war, annealed layouts, local
-softmax, OT transport --- each of which is a nice geometric or combinatorial
-observation. This subsection traces them; everything later in the report
-leans on these pictures.
+\paragraph{\code{v0\_expansion}: the pacifist baseline.} Economy and
+expansion agents only. The economy agent computes an ideal
+factory/powerplant layout once, then works through it nearest-first; the
+expansion agent pulls troops toward capturable neutral border nodes. It
+never attacks another player. Everything after v0 is this bot plus war,
+better layouts, better attention, or better transport.
 
-\paragraph{Building is an anti-magnet problem.} A powerplant produces
-nothing itself; it pays +2/tick to every adjacent factory. So powerplants
-want to be surrounded by factories, and factories want at least one
-powerplant neighbor --- like atoms that prefer unlike neighbors
-(Figure~\ref{fig:bg-economy}, left). On an even cycle you can alternate the
-two types perfectly; on an \emph{odd} cycle you cannot --- some edge always
-joins two of a kind and is wasted (Figure~\ref{fig:bg-economy}, right).
-This is exactly the physicists' \emph{frustrated Ising model}, and choosing
-the best layout on a general graph is the MAX-CUT problem
-\citep{goemans1995,lucas2014}: NP-hard, riddled with local optima that trap
-greedy improvement. Hence the two solvers in the lineage: \emph{simulated
-annealing} \citep{kirkpatrick1983} escapes local optima by sometimes
-accepting bad swaps early on, and the Goemans--Williamson approach
-\citep{goemans1995} relaxes each binary choice to a direction in space and
-cuts with a random hyperplane. (The game's real objective is a weighted,
-factory-biased version of pure alternation, but the geometry is the same.)
+\paragraph{\code{v1\_knapsack} (and \code{\_hybrid}): war arrives as a
+shopping problem.} To attack well, look along your border
+(Figure~\ref{fig:bg-knapsack}): each adjacent enemy node has a \emph{price}
+(the troops parked on it, marked up 20\% if fortified) and a \emph{value}
+(capital 5, artillery 3, powerplant 2, factory 1, plus synergy bonuses),
+and the troops on your frontier are a \emph{budget}. Choosing which subset
+of targets to hit is the classic 0/1 knapsack problem, which \code{v1}
+solves by value-per-price greed (exactly, for benchmarking, when the
+frontier is small). \code{v1\_knapsack} paid for its war agent by dropping
+expansion entirely; the \code{\_hybrid} variant restores expansion at half
+weight. Neither is competitive today, but the price/value/budget frame
+survives in every later warrior.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{figs/knapsack_war/knapsack_war.pdf}
+\caption{War as a knapsack, on a game-like map patch. A ragged front
+(dashed) separates our side (blue; frontier troop counts shown) from the
+enemy (red). Each reachable target has a price and a value; the checked,
+ringed nodes are the affordable basket of maximum value.}
+\label{fig:bg-knapsack}
+\end{figure}
+
+\paragraph{\code{v4}: the workhorse.} Replaces the literal knapsack with a
+priority rule: prefer valuable targets with few connections (fewer ways for
+the enemy to reinforce them or counterattack from them), and attack any
+target the moment local supply exceeds its price. This simplification is,
+by the ablation numbers, the single largest jump in the lineage. \code{v4}
+is the long-time default and the baseline everywhere in this report
+(\code{v2}/\code{v3} are code-identical and excluded).
+
+\paragraph{\code{v5\_qubo} and \code{v6}: the layout becomes a solved
+problem.} A powerplant produces nothing itself; it pays +2/tick to every
+adjacent factory. So powerplants want factory neighbors and vice versa ---
+like atoms that prefer unlike neighbors (Figure~\ref{fig:bg-economy}a). On
+the game's mesh-like maps this preference can never be fully satisfied:
+a triangle joins three nodes in pairs, so two of them must match, and the
+maps are full of triangles --- frustration is the generic condition, not an
+edge case (Figure~\ref{fig:bg-economy}b). Formally this is the frustrated
+Ising model / MAX-CUT \citep{lucas2014,goemans1995}: NP-hard, riddled with
+local optima. \code{v5\_qubo} therefore picks its layout by
+\emph{simulated annealing} \citep{kirkpatrick1983}, which escapes local
+optima by sometimes accepting bad swaps early; the Goemans--Williamson
+alternative \citep{goemans1995} relaxes each binary choice to a direction
+in space and cuts with a random hyperplane. \code{v6} biases the objective
+toward factories --- which \emph{lowers} its score in the layout gym yet
+makes the bot stronger, a paradox resolved in \S\ref{sec:economy}.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figs/economy_ising/economy_ising.pdf}
-\caption{The building problem. Left: the payoff motif --- one powerplant
-(P) boosting every adjacent factory (F). Middle: on even cycles, perfect
-alternation is possible. Right: on odd cycles some edge is always
-``frustrated'' --- the combinatorial obstruction that makes layout
-optimization hard.}
+\caption{The building problem on a game-like map patch. (a) the payoff
+motif in situ: one powerplant (P) boosting its factory (F) neighbors.
+(b) an annealed layout of the whole patch: alternation succeeds where the
+mesh is locally even, and every triangle forces a frustrated (dashed red)
+edge.}
 \label{fig:bg-economy}
 \end{figure}
 
-\paragraph{Moving troops: a pressure field vs.\ a shipping manifest.} The
-two transport generations are two classical pictures of the same problem
-(Figure~\ref{fig:bg-transport}). \emph{Gradient transport} treats the
-mismatch between where troops are and where they are wanted as a pressure
-field: solve for a smooth ``height'' over the graph (a Poisson equation ---
-the same mathematics as heat or electric flow \citep{benamou2000}) and let
-troops roll downhill. Robust and cheap, but myopic: flow follows local
-slope, so mass can dribble, split badly, or strand on plateaus.
-\emph{OT transport} instead writes the shipping manifest explicitly: pair
-every surplus troop with a destination so that total travel time is
-minimized --- the Monge--Kantorovich optimal-transport problem
-\citep{kantorovich1942,peyre2019}, solved exactly as a minimum-cost flow
-\citep{dantzig1963,orlin1997}. The manifest knows global structure (send 60
-\emph{there}, 40 \emph{further}); the pressure field only knows which way is
-downhill. \S\ref{sec:transport} measures the difference.
+\paragraph{\code{v7}: construction discipline.} One rule: stop expanding
+while more than a fifth of your territory is unconstructed. No new theory
+--- but note for later that this same feature helps on \code{v6} and
+\emph{hurts} when re-added on the OT chassis (\S\ref{sec:elo-ablation}):
+ablations are context-dependent.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth]{figs/transport_views/transport_views.pdf}
-\caption{Two views of the same transport problem: one surplus (+100), two
-deficits ($-60$, $-40$). Left: gradient transport --- a pressure field over
-the graph, flow follows the slope. Right: OT transport --- explicit
-consignments on cheapest routes.}
-\label{fig:bg-transport}
-\end{figure}
-
-\paragraph{Attacking is shopping with a budget.} Look along your border:
-each adjacent enemy node has a \emph{price} (the troops parked on it,
-marked up 20\% if fortified) and a \emph{value} (capital 5, artillery 3,
-powerplant 2, factory 1, plus synergy bonuses). The troops on your frontier
-are a \emph{budget}. Choosing which subset of targets to hit is then the
-classic 0/1 knapsack problem (Figure~\ref{fig:bg-knapsack}) --- the
-\code{v1\_knapsack} models solve it by value-per-price greed (and, for
-benchmarking, exactly). Later war agents keep the same price/value scoring
-but simplify the selection to a priority rule, preferring valuable targets
-with few connections --- fewer ways for the enemy to reinforce them or
-counterattack from them --- and attack any target the moment local supply
-exceeds its price.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.8\textwidth]{figs/knapsack_war/knapsack_war.pdf}
-\caption{The war agent's decision as a knapsack: frontier troops are the
-budget; each reachable enemy node has a price (defenders) and a value
-(structure worth); pick the affordable basket of maximum value.}
-\label{fig:bg-knapsack}
-\end{figure}
-
-\paragraph{Attention: one auction or many.} Stage 1 of every bot ends with
-a softmax: node scores become shares of the army. A \emph{global} softmax
-is a single auction --- the best-scoring target in the world attracts
-troops from everywhere, however far away (Figure~\ref{fig:bg-softmax},
-left). \code{v8}'s \emph{local} softmax discounts each target's pull by
-distance, so nodes compete only with nearby rivals and each region feeds
-its own best target (right). The effect is an army that fights on several
-fronts at once instead of over-committing to the single shiniest
-objective. This one change is, by the ladder of \S\ref{sec:elo}, the most
-valuable feature any model tested --- and no later model kept it.
+\paragraph{\code{v8}: attention becomes local.} Stage 1 ends with a
+softmax: node scores become shares of the army. A \emph{global} softmax is
+one auction --- the best-scoring target on the map attracts troops from
+everywhere, however far away (Figure~\ref{fig:bg-softmax}a). \code{v8}
+discounts each target's pull by distance, so nodes compete only with nearby
+rivals and each region feeds its own best target
+(Figure~\ref{fig:bg-softmax}b): an army that fights on several fronts at
+once instead of over-committing to the single shiniest objective. By the
+ladder of \S\ref{sec:elo} this is the most valuable feature any model
+tested --- and no later model kept it.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figs/softmax_views/softmax_views.pdf}
-\caption{Global vs.\ local softmax over the same scores (darker = higher).
-Global: every node's troops flow toward the single best target. Local
-(\code{v8}): pull decays with distance, so each region attends to its own
-target.}
+\caption{Global vs.\ local softmax over the same node scores (yellow = the
+two hotspots) on a game-like patch. Global: every node's troops pull toward
+the single best target on the map. Local (\code{v8}): pull decays with
+distance, so each region attends to its own hotspot.}
 \label{fig:bg-softmax}
 \end{figure}
 
-\subsection{The bot lineage}
-\label{sec:bg-lineage}
+\paragraph{\code{v9}: transport becomes optimal.} The two transport
+generations are two classical pictures of the same problem
+(Figure~\ref{fig:bg-transport}). \emph{Gradient transport} (v0--v8) treats
+the mismatch between where troops are and where they are wanted as a
+pressure field: solve a Poisson equation on the graph --- the same
+mathematics as heat or electric flow \citep{benamou2000} --- and let troops
+roll downhill. Robust and cheap, but myopic: flow follows local slope, so
+mass can dribble, split badly, or strand on plateaus. \code{v9} instead
+writes the shipping manifest explicitly: pair every surplus troop with a
+destination so total travel time is minimized --- the Monge--Kantorovich
+optimal-transport problem \citep{kantorovich1942,peyre2019}, solved exactly
+as a minimum-cost flow \citep{dantzig1963,orlin1997}. Mechanically, OT
+expresses the target through \textbf{requests}: each node asks for a
+specific number of troops (``I need 40 more'') and the solver routes
+supply to fill requests on cheapest paths.
 
-Thirteen versions compete. Each is one deliberate change over its
-predecessor; reading this table is enough to follow every result in the
-report.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figs/transport_views/transport_views.pdf}
+\caption{Two views of the same instance on a game-like patch: one surplus
+($+100$), two deficits ($-60$, $-40$). (a) gradient transport: nodes
+colored by the actual Poisson solution $\phi$, arrows on the steepest
+edges. (b) OT transport: explicit consignments routed on cheapest paths
+(solid and dashed green).}
+\label{fig:bg-transport}
+\end{figure}
+
+\paragraph{\code{v10}--\code{v12}: refinements on the OT chassis.}
+\code{v10} re-adds \code{v7}'s construction discipline. \code{v11} makes
+requests subtract troops already \emph{en route} --- a node stops asking
+once help is on the way. It sounds like bookkeeping hygiene; the ladder
+says otherwise (\S\ref{sec:elo-v11}). \code{v12} adds the \textbf{border
+reserve}: an always-on request at every node touching enemy territory,
+sized to outnumber the largest adjacent enemy force --- informally, park a
+standing army on the border. (The code calls this the \emph{frontline
+garrison}.) The border reserve turns out to be decisive three separate
+times in this report.
 
 \begin{table}[htbp]
 \centering
@@ -171,25 +190,22 @@ report.
 Model & What changed \\
 \midrule
 \code{v0\_expansion}      & Baseline: economy + expansion only. Never attacks. \\
-\code{v1\_knapsack}       & Adds the knapsack war agent (\S\ref{sec:bg-ideas}), \\
-                          & dropping expansion. \\
+\code{v1\_knapsack}       & Adds the knapsack war agent, dropping expansion. \\
 \code{v1\_knapsack\_hybrid} & All three agents, expansion at half weight. \\
-\code{v4}                 & Simpler priority-rule war agent; the long-time default. \\
-\code{v5\_qubo}           & Build layout by annealed MAX-CUT (\S\ref{sec:bg-ideas}). \\
+\code{v4}                 & Knapsack $\to$ priority-rule war; the long-time default. \\
+\code{v5\_qubo}           & Build layout by annealed MAX-CUT. \\
 \code{v6}                 & Same, with the layout biased toward factories. \\
 \code{v7}                 & Stops expanding while behind on construction. \\
-\code{v8}                 & Local softmax (\S\ref{sec:bg-ideas}): troops compete \\
-                          & for nearby targets, not global ones. \\
-\code{v9}                 & Gradient transport $\to$ OT transport (\S\ref{sec:bg-ideas}). \\
+\code{v8}                 & Local softmax: troops compete for nearby targets. \\
+\code{v9}                 & Gradient transport $\to$ OT transport. \\
 \code{v10}                & = v9 + v7's construction discipline. \\
-\code{v11}                & Requests subtract troops already \emph{en route}: \\
-                          & a node stops asking once help is on the way. \\
+\code{v11}                & Requests subtract troops already \emph{en route}. \\
 \code{v12}                & = v11 + the border reserve. \\
 \bottomrule
 \end{tabular}
-\caption{One line per model. (\code{v2}/\code{v3} are code-identical to
-\code{v4} and excluded; \code{v5\_qubo\_composite} is a \code{v5} variant
-with a blended layout objective.)}
+\caption{The recap card: one line per model. (\code{v2}/\code{v3} are
+code-identical to \code{v4} and excluded; \code{v5\_qubo\_composite} is a
+\code{v5} variant with a blended layout objective.)}
 \label{tab:lineage}
 \end{table}
 
@@ -222,7 +238,8 @@ Three kinds of evidence appear throughout:
 
 \begin{itemize}
   \item \textbf{Tournaments} rate whole bots (\S\ref{sec:elo},
-    \S\ref{sec:transitivity}).
+    \S\ref{sec:transitivity}), and lineage-step head-to-heads within them
+    serve as ablations (\S\ref{sec:elo-ablation}).
   \item \textbf{Gyms} score a single component --- economy, transport,
     ordering, combat --- in isolation, on synthetic instances
     (\S\ref{sec:components}). Gym scores are diagnostics: twice in this
@@ -232,14 +249,15 @@ Three kinds of evidence appear throughout:
     with one bot swapped, to explain \emph{why} a number is what it is.
     Because games are deterministic given a seed, a replay with one bot
     changed is a controlled experiment.
-\end{itemize}
+  \end{itemize}
 
 \paragraph{Reproducibility.} Experiments live in
 \code{experiments/<name>/run.py} (fixed seeds and solver lists; run as
 \code{python3 -m experiments.<name>.run}). Each writes
 \code{results/<name>/}: a \code{manifest.json} recording the git SHA, date,
 command, and parameters; raw per-game CSVs; and the summary tables and
-figures this document includes directly. To reproduce any number: check out
-the SHA in the manifest, build, re-run the module. This round is a quick
-pass --- game counts give stable rankings in minutes, not tight confidence
-intervals.
+figures this document includes directly. Concept diagrams are likewise
+script-generated (\code{writeup/figs/}), drawn on faithful miniatures of
+the game's map generator. To reproduce any number: check out the SHA in the
+manifest, build, re-run the module. This round is a quick pass --- game
+counts give stable rankings in minutes, not tight confidence intervals.

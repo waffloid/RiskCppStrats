@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Global vs local softmax: one auction or many.
+"""Global vs local softmax on a game-like mesh patch.
+
+Same patch and node scores (two hotspots, one slightly higher) in both
+panels; arrows show where each node's troops are pulled. Global: everything
+drains to the single best node on the map. Local (v8): pull decays with
+distance, so each region feeds its own hotspot.
 
 Run: python3 writeup/figs/softmax_views/generate.py
 """
 from __future__ import annotations
 
-import math
 import sys
 from pathlib import Path
 
@@ -16,25 +20,24 @@ sys.path.insert(0, str(HERE.parent))
 
 from _diagram_lib import (  # noqa: E402
     TikzWriter, Palette, fmt, tikzpicture_preamble, tikzpicture_footer,
-    build_pdf,
+    build_pdf, poisson_patch,
 )
 
 NAME = HERE.name
-N = 13
-PEAKS = (3, 10)
-
-
-def score(i: int) -> float:
-    return (1.0 * math.exp(-0.5 * (i - PEAKS[0]) ** 2)
-            + 0.85 * math.exp(-0.5 * (i - PEAKS[1]) ** 2))
+R = "3.6pt"
+SEED = 33
 
 
 def emit() -> Path:
-    pal = Palette("viridis", alpha=0.65)
-    xs = [i * 0.62 for i in range(N)]
-    scores = [score(i) for i in range(N)]
-    smax = max(scores)
+    P, edges = poisson_patch(SEED)
+    # hotspots: two far-apart nodes
+    h1 = int(np.argmin(P[:, 0] - 0.4 * P[:, 1]))
+    h2 = int(np.argmax(P[:, 0] + 0.4 * P[:, 1]))
+    scores = (1.00 * np.exp(-0.55 * np.linalg.norm(P - P[h1], axis=1) ** 2)
+              + 0.85 * np.exp(-0.55 * np.linalg.norm(P - P[h2], axis=1) ** 2))
+    scores /= scores.max()
 
+    pal = Palette("viridis", alpha=0.65)
     w = TikzWriter()
     w.line(tikzpicture_preamble(
         cv_unit="1.0cm",
@@ -42,29 +45,34 @@ def emit() -> Path:
     ))
 
     for panel, local in ((0, False), (1, True)):
-        xoff = panel * 9.2
+        xoff = panel * 6.6
         w.begin_scope(f"shift={{({fmt(xoff)},0)}}")
-        for i, x in enumerate(xs):
-            if i in PEAKS:
+        for i, j in edges:
+            w.edge(P[i], P[j], "draw=black!22, line width=0.35pt")
+        for i in range(len(P)):
+            if i in (h1, h2):
                 continue
-            target = PEAKS[0] if (not local or
-                                  abs(i - PEAKS[0]) <= abs(i - PEAKS[1])) \
-                else PEAKS[1]
-            bend = "left" if xs[target] > x else "right"
-            amt = 20 + min(58, 9 * abs(target - i))
-            w.line(f"    \\draw[flow, opacity=0.65] ({fmt(x)},0.14) "
-                   f"to[bend {bend}={amt}] ({fmt(xs[target])},0.2);")
-        for i, x in enumerate(xs):
-            w.filled_circle(np.array((x, 0)), "3.4pt",
-                            pal.fill_spec(scores[i] / smax)
+            d1 = np.linalg.norm(P[i] - P[h1])
+            d2 = np.linalg.norm(P[i] - P[h2])
+            target = h1 if (not local or d1 <= d2) else h2
+            a, b = P[i], P[target]
+            d = (b - a) / np.linalg.norm(b - a)
+            w.line(f"    \\draw[-{{Stealth[length=3pt]}}, draw=black!55, "
+                   f"line width=0.5pt, opacity=0.75] "
+                   f"({fmt(a[0]+0.14*d[0])},{fmt(a[1]+0.14*d[1])}) -- "
+                   f"({fmt(b[0]-0.22*d[0])},{fmt(b[1]-0.22*d[1])});")
+        for i in range(len(P)):
+            w.filled_circle(P[i], "4.4pt" if i in (h1, h2) else R,
+                            pal.fill_spec(scores[i])
                             + ", draw=black, line width=0.4pt")
-        for i, lbl in ((PEAKS[0], "score 1.0"), (PEAKS[1], "score 0.9")):
-            w.node(np.array((xs[i], -0.32)), rf"\footnotesize {lbl}",
-                   "anchor=north")
+        w.node(P[h1] + np.array((0, -0.3)), r"\footnotesize score 1.0",
+               "anchor=north")
+        w.node(P[h2] + np.array((0, -0.3)), r"\footnotesize score 0.9",
+               "anchor=north")
         title = (r"\small\textbf{(a)} global softmax: one auction"
                  if not local else
                  r"\small\textbf{(b)} local softmax (v8): many auctions")
-        w.node(np.array((xs[-1] / 2, 2.05)), title, "anchor=center")
+        w.node(np.array((2.6, 3.75)), title, "anchor=center")
         w.end_scope()
 
     w.line(tikzpicture_footer())

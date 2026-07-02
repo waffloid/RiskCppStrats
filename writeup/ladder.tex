@@ -61,6 +61,49 @@ identical 0.17 score rate, the same basement. Four headlines:
     (\code{v1\_knapsack} and its hybrid) lose both tournaments outright.
 \end{enumerate}
 
+\subsection{The lineage as an ablation study}
+\label{sec:elo-ablation}
+
+Because each lineage step adds (approximately) one feature
+(\S\ref{sec:bg-lineage}), the child-vs-parent head-to-head inside the
+tournaments is an ablation: the marginal value of one idea with everything
+else held fixed. Table~\ref{tab:ablation} reads the existing game logs this
+way --- no new games were played.
+
+\begin{table}[htbp]
+\centering
+\resultstable{elo_duel/tables/ablation}
+\caption{Each lineage step as an ablation: the child's head-to-head score
+rate against its parent (4 games each per protocol) and the overall rating
+gap. $\Delta$Elo magnitudes at the extremes are Bradley--Terry scale
+artifacts; the head-to-head columns are the honest ablation signal.}
+\label{tab:ablation}
+\end{table}
+
+Four readings:
+
+\begin{enumerate}
+  \item \textbf{The biggest single wins are the simplest features.}
+    Replacing the literal knapsack with \code{v4}'s priority rule sweeps
+    (1.00/1.00), and the border reserve sweeps (1.00/1.00). The most
+    sophisticated machinery in the lineage --- the annealed layout ---
+    buys \emph{nothing} head-to-head (\code{v4} vs.\ \code{v5\_qubo}:
+    0.50/0.50), the gym-vs-game gap of \S\ref{sec:economy} in ablation
+    form.
+  \item \textbf{Adding war made the bot worse.} The first step,
+    \code{v0} $\to$ \code{v1\_knapsack}, loses every game to its pacifist
+    parent (0.00/0.00) --- though it is confounded (the step also dropped
+    expansion), the aggressive posture never recovers until \code{v4}.
+  \item \textbf{The same feature flips sign by chassis.} Construction
+    discipline scores 0.75 when added to \code{v6}, and 0/8 when re-added
+    to the OT chassis (\code{v9} $\to$ \code{v10}) --- feature value is
+    contextual, which is exactly why the ablation column and the global
+    rating disagree in places.
+  \item \textbf{The \code{v11} step is the largest regression in the
+    lineage} (0.00/0.00 against \code{v10}), and the step after it the
+    largest recovery. The case study below takes it apart.
+\end{enumerate}
+
 \subsection{Case study: the one-feature collapse of \code{v11}}
 \label{sec:elo-v11}
 

@@ -1,0 +1,12 @@
+parent,child,feature,duel_h2h_child,ffa_h2h_child,elo_delta
+v0_expansion,v1_knapsack,war agent (drops expansion; confounded),0.000,0.000,-2788.1
+v1_knapsack,v1_knapsack_hybrid,expansion restored at half weight,0.000,0.250,-2727.5
+v1_knapsack_hybrid,v4,knapsack $\to$ priority-rule war,1.000,1.000,5413.0
+v4,v5_qubo,layout via annealed MAX-CUT,0.500,0.500,-105.1
+v5_qubo,v6,factory-biased layout,1.000,0.750,181.6
+v6,v7,construction discipline,0.750,0.750,-25.6
+v6,v8,local softmax (branch),1.000,1.000,503.5
+v6,v9,OT transport ($\sim$parent),0.750,0.750,503.5
+v9,v10,construction discipline,0.000,0.000,-605.5
+v10,v11,en-route request netting,0.000,0.000,-1456.0
+v11,v12,border reserve,1.000,1.000,2061.5

@@ -1,0 +1,17 @@
+\begin{tabular}{llrrr}
+\toprule
+Step & Feature added & Duel h2h & FFA h2h & $\Delta$Elo \\
+\midrule
+v0 $\to$ v1k & war agent (drops expansion; confounded) & 0.00 & 0.00 & -2788 \\
+v1k $\to$ v1kh & expansion restored at half weight & 0.00 & 0.25 & -2728 \\
+v1kh $\to$ v4 & knapsack $\to$ priority-rule war & 1.00 & 1.00 & +5413 \\
+v4 $\to$ v5q & layout via annealed MAX-CUT & 0.50 & 0.50 & -105 \\
+v5\_qubo $\to$ v6 & factory-biased layout & 1.00 & 0.75 & +182 \\
+v6 $\to$ v7 & construction discipline & 0.75 & 0.75 & -26 \\
+v6 $\to$ v8 & local softmax (branch) & 1.00 & 1.00 & +504 \\
+v6 $\to$ v9 & OT transport ($\sim$parent) & 0.75 & 0.75 & +504 \\
+v9 $\to$ v10 & construction discipline & 0.00 & 0.00 & -606 \\
+v10 $\to$ v11 & en-route request netting & 0.00 & 0.00 & -1456 \\
+v11 $\to$ v12 & border reserve & 1.00 & 1.00 & +2062 \\
+\bottomrule
+\end{tabular}

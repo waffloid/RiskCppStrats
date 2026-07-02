@@ -24,7 +24,7 @@ def build_pdf(name: str, here: Path, *, cv_unit: str = "1.6cm",
         "\\documentclass[tikz,border=4pt]{standalone}\n"
         "\\usepackage{tikz}\n"
         "\\usetikzlibrary{arrows.meta,bending}\n"
-        "\\usepackage{amsmath,mathtools}\n"
+        "\\usepackage{amsmath,mathtools,amssymb}\n"
         f"\\newcommand{{\\cvunit}}{{{cv_unit}}}\n"
         f"{extra_preamble}"
         f"\\begin{{document}}\n\\input{{{name}.tex}}\n\\end{{document}}\n"

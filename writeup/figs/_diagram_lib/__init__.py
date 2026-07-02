@@ -13,9 +13,15 @@ from .tikz import TikzWriter, fmt
 from .palette import Palette
 from .styles import tikzpicture_preamble, tikzpicture_footer, STYLES
 from .build import build_pdf
+from .geom_graph import (
+    poisson_patch, neighbors, anneal_two_coloring, shortest_path,
+    graph_poisson_potential,
+)
 
 __all__ = [
     "TikzWriter", "fmt", "Palette",
     "tikzpicture_preamble", "tikzpicture_footer", "STYLES",
     "build_pdf",
+    "poisson_patch", "neighbors", "anneal_two_coloring", "shortest_path",
+    "graph_poisson_potential",
 ]
