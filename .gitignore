@@ -31,3 +31,5 @@ writeup/build/
 
 # Python
 __pycache__/
+.venv/
+build2/

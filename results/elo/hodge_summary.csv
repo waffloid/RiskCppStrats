@@ -1,0 +1,14 @@
+rank,model,hodge_potential
+1,v8,0.3654
+2,v9,0.3269
+3,v12,0.2308
+4,v10,0.1346
+5,v7,0.1346
+6,v0_expansion,0.0962
+7,v6,0.0769
+8,v5_qubo,-0.0385
+9,v4,-0.0577
+10,v5_qubo_composite,-0.1154
+11,v11,-0.3077
+12,v1_knapsack,-0.4038
+13,v1_knapsack_hybrid,-0.4423

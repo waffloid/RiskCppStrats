@@ -1,12 +1,17 @@
-% Combat battery -- generated tables from results/combat/
-\textbf{Benchmark.} Pure tactics: building is disabled and each candidate
-model fights a fixed baseline (\code{v4}) on four hand-built maps ---
-\code{corridor} (a path with opposing factory chains), \code{bipartite\_3\_5}
-(a dense frontier), \code{star\_hub} (one side holds the hub), and
-\code{grid\_5x5} (diagonal split). This isolates the war agents and transport
-from economy and expansion, which dominate the full-game ladder of
-\S\ref{sec:elo}. Scores: wins over all benchmark runs and aggregate kill/death
-ratio.
+% Combat battery -- generated tables/figures under results/combat/
+
+\subsection{Protocol}
+
+Pure tactics: building is disabled and each candidate model fights a fixed
+baseline (\code{v4}) on four hand-built maps --- \code{corridor} (a path with
+opposing factory chains), \code{bipartite\_3\_5} (a dense frontier),
+\code{star\_hub} (one side holds the hub), and \code{grid\_5x5} (diagonal
+split). This isolates the war agents and transport from economy and
+expansion, which dominate the full-game ladder of \S\ref{sec:elo}. Scores:
+wins over all battery runs and aggregate kill/death ratio. \code{v4} appears
+against itself as a control row.
+
+\subsection{Results}
 
 \begin{table}[ht]
 \centering
@@ -16,14 +21,36 @@ Per-map columns give wins out of runs.}
 \label{tab:combat}
 \end{table}
 
-\textbf{Reading.} The control row dominates the interpretation: \code{v4}
-against itself wins 0/12 as player~0, i.e.\ these maps are heavily biased
-toward the player-1 slot, and raw win counts must be read as \emph{wins above
-control}, not win rates. By that standard \code{v12} is the only model that
-beats the asymmetry anywhere --- it sweeps \code{corridor} 3/3, which is
-exactly the map its frontline-garrison pooling was built for. The K/D column
-adds texture the win column misses: \code{v1\_knapsack} trades at 5.3:1 yet
-only stalemates (3 draws) --- efficient attrition without the transport to
-convert it --- while \code{v9}'s OT transport alone (0.65 K/D, matching the
-\code{v4} control) does not help on pure-combat maps. A symmetric protocol
-(each model playing both slots) is the cheap fix for the position bias.
+The control row dominates the interpretation: \code{v4} against itself wins
+0/12 as player~0, i.e.\ these maps are heavily biased toward the player-1
+slot, and raw win counts must be read as \emph{wins above control}, not win
+rates. By that standard \code{v12} is the only model that beats the asymmetry
+anywhere --- it sweeps \code{corridor} 3/3, exactly the map its
+frontline-garrison pooling was built for. The K/D column adds texture:
+\code{v1\_knapsack} trades at 5.3:1 yet only stalemates (3 draws) ---
+efficient attrition without the transport to convert it --- while \code{v9}'s
+OT transport alone (0.65~K/D, matching the control) does not help on
+pure-combat maps. Playing both slots per matchup is the cheap fix
+(\S\ref{sec:open}, item 6).
+
+\subsection{Case study: anatomy of a corridor win}
+
+Figure~\ref{fig:corridor} shows per-tick telemetry of a \code{v12} corridor
+victory. The two panels tell one story from two sides. Troop totals
+(left): both models' production tracks identically until $\sim$tick 400, then
+\code{v4}'s curve turns into a sawtooth --- it repeatedly masses a stack,
+attacks, and loses it --- while \code{v12}'s keeps compounding, because its
+pooled frontline garrison makes each defensive exchange favorable.
+Cumulative kills (right): \code{v12}'s kills climb in discrete staircase
+jumps, one per repelled \code{v4} assault, reaching a $\sim$4:1 final margin.
+The battle is decided not by one breakthrough but by \code{v4} funding
+\code{v12}'s kill count in installments; the final collapse after tick 2600
+is \code{v4}'s last stack breaking against the garrison.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{\resultsfig{combat/figures/corridor_battle.pdf}}
+\caption{Per-tick anatomy of a \code{v12} (blue) vs.\ \code{v4} (green)
+corridor battle: total troops (left) and cumulative kills (right).}
+\label{fig:corridor}
+\end{figure}

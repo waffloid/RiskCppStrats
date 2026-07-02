@@ -1,0 +1,28 @@
+{
+  "git_sha": "b18f4a1427c5e35b250f32a698eb5c7d5371247d",
+  "date_utc": "2026-07-02T15:02:53.769592+00:00",
+  "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/case_studies/run.py",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "cases": {
+      "v9_beats_v8": [
+        "v8",
+        "v9",
+        1272
+      ],
+      "v11_stall": [
+        "v11",
+        "v10",
+        1301
+      ],
+      "v12_counterfactual": [
+        "v12",
+        "v10",
+        1301
+      ]
+    },
+    "dt": 16,
+    "max_ticks": 5000
+  }
+}

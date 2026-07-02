@@ -9,53 +9,64 @@
 \usepackage{xcolor}
 
 \newcommand{\code}[1]{\texttt{#1}}
-% Root of the generated results tree, relative to this file.
+% Generated artifacts, relative to this file.
 \newcommand{\resultstable}[1]{\input{../results/#1}}
+\newcommand{\resultsfig}[1]{../results/#1}
+% Numbers computed by experiments/elo/hodge.py:
+\input{../results/elo/hodge_macros.tex}
 
 \title{CRisky: Empirical Benchmarks\\
   \large Scores and rankings for bots, economy, transport, ordering, and combat}
-\author{}
+\author{Claude (Anthropic)\thanks{Analysis, experiment harness, and text
+  prepared by Claude (Fable~5) at Joel Braun's request, as a consultative
+  report on his CRisky codebase. The game, the solvers, and the models under
+  evaluation are Joel's; the experimental protocols, statistical readings, and
+  any errors in them are the model's.}}
 \date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-CRisky decomposes a real-time graph-strategy game into subproblems --- building,
-transport, combat --- each attacked by specialized solvers rather than end-to-end
-learning. This document makes that program empirical: every component with
-competing proposals gets a benchmark, a score, and a ranking. Bots are ranked by
-round-robin tournament under a Bradley--Terry model; economy, transport, and
-ordering solvers are ranked in their respective gyms. All numbers in this
-document are generated artifacts: each experiment records its seeds, parameters,
-and the git revision it ran at, and every table is \code{\textbackslash input}
-directly from the results tree.
+CRisky decomposes a real-time graph-strategy game into subproblems ---
+building, transport, combat --- each attacked by specialized solvers rather
+than end-to-end learning. This report makes that program empirical: every
+component with competing proposals gets a benchmark, a score, and a ranking.
+Bots are ranked by round-robin tournament under a Bradley--Terry model, and
+the tournament's pairwise structure is Hodge-decomposed to measure how
+transitive the game actually is (answer: \hodgetransitivity{} --- the
+remaining \hodgecurl{} is cyclic and invisible to any scalar rating). Economy,
+transport, and ordering solvers are ranked in their gyms. Sweeping rankings
+are paired with single-game case studies, including a controlled
+counterfactual that isolates the \code{v11} regression. All numbers and
+figures are generated artifacts, reproducible from committed manifests.
 \end{abstract}
 
 \section{Methodology and reproducibility}
 \label{sec:method}
 
-The empirical infrastructure is a three-way decomposition at the repository root,
-each stratified by experiment:
+The empirical infrastructure is a three-way decomposition at the repository
+root, each stratified by experiment:
 
 \begin{itemize}
   \item \code{experiments/<name>/run.py} --- the experiment \emph{definition}:
-    fixed solver lists, seed bases, and protocol. Invoked as
-    \code{python3 -m experiments.<name>.run}.
+    fixed solver lists, seed bases, protocol. Invoked as
+    \code{python3 -m experiments.<name>.run}; companion \code{plot.py} and
+    analysis scripts regenerate figures and derived tables from the raw data
+    without re-running games.
   \item \code{results/<name>/} --- machine-produced artifacts:
-    \code{manifest.json} (git SHA, UTC date, exact command, all parameters),
-    \code{raw/*.csv} (every individual game or run), \code{summary.csv}
-    (the aggregated ranking), and \code{tables/*.tex} (the booktabs tables
-    included below).
+    \code{manifest.json} (git SHA, UTC date, exact command, parameters),
+    \code{raw/*.csv} (every individual game or run), \code{summary.csv},
+    \code{tables/*.tex}, and \code{figures/*.pdf}, all of which this document
+    includes directly.
   \item \code{writeup/} --- this document; one section per experiment.
 \end{itemize}
 
-Reproducing any table is: check out the SHA in the manifest, build, re-run the
-module. Runners are deterministic given the manifest parameters (fixed seed
-bases; no wall-clock or unseeded randomness). This round is a
-\emph{quick pass} --- game counts and seed counts are chosen to give stable
-rankings in minutes, not tight confidence intervals; each section notes what a
-bigger run would sharpen.
+Reproducing any table or figure is: check out the SHA in the manifest, build,
+re-run the module. Case-study games replay tournament seeds, so the anecdotes
+are drawn from the same population as the statistics. This round is a
+\emph{quick pass}: game counts give stable rankings in minutes, not tight
+confidence intervals; each section notes what a longer run would sharpen.
 
 \section{Bot ladder}
 \label{sec:elo}
@@ -80,23 +91,27 @@ bigger run would sharpen.
 \section{Open items}
 \label{sec:open}
 
-\begin{itemize}
-  \item \textbf{Scale the ladder.} The quick pass plays 4 games per pair;
-    Elo gaps under $\sim$100 points should not be over-read. The harness is
-    deterministic and parallel; an overnight run with 20+ games per pair and
-    bootstrap confidence intervals is the obvious next step.
-  \item \textbf{\code{path\_end} anomaly.} Both transport solvers stall at a
-    loss plateau on the path preset (\S\ref{sec:transport}); neither converges.
-    \code{gym\_transport\_diag} exists for exactly this and should be pointed
-    at it.
+\begin{enumerate}
+  \item \textbf{Build the missing bot.} \code{v8}'s distance softmax and
+    \code{v12}'s OT transport are orthogonal and are ranks 1 and 3; their
+    combination is unexplored (\S\ref{sec:elo-ladder}).
+  \item \textbf{Diagnose \code{v11}.} The counterfactual of
+    \S\ref{sec:elo-v11} isolates the regression to effective-troops demand
+    netting; instrument the OT demands in a stalling game to confirm the
+    starvation mechanism.
+  \item \textbf{Scale the ladder.} Four games per pair separates tiers, not
+    neighbors; the harness is deterministic and parallel, and the Hodge
+    analysis re-runs on any extended log at no extra game cost.
+  \item \textbf{\code{path\_end} anomaly.} Both transport solvers plateau
+    identically (Figure~\ref{fig:transport-curves}); point
+    \code{gym\_transport\_diag} at it.
   \item \textbf{Ordering metric.} Accumulated production barely separates
-    orderings on MCMC plans (\S\ref{sec:ordering}); a discounted objective
-    $\int e^{-\lambda t} P(t)\,dt$ would reward early payoff directly.
-  \item \textbf{Gym metrics vs.\ game strength.} The factory-biased QUBO
-    objective scores \emph{worse} in the economy gym yet powers stronger bots
-    (v6+); the gym's efficiency metric is a proxy, not the objective. Elo is
-    the ground truth; gym scores are diagnostics.
-\end{itemize}
+    orderings (\S\ref{sec:ordering}); a discounted objective
+    $\int e^{-\lambda t}P(t)\,dt$ would reward early payoff directly.
+  \item \textbf{Symmetrize the combat battery.} The \code{v4} self-play
+    control exposes a strong player-1 map bias (\S\ref{sec:combat}); play both
+    slots per matchup.
+\end{enumerate}
 
 \bibliographystyle{plainnat}
 \bibliography{refs}

@@ -1,36 +1,68 @@
-% Transport solver benchmark -- generated tables from results/transport/
-\textbf{Benchmark.} A single player, production and combat disabled, must
-redistribute troops from an initial to a target distribution on six preset
-instances (star, path, bipartite, and three Poisson-map scenarios). Per tick we
-record the $L^1$ loss to target; scores are \emph{ticks to converge} (first
-tick with loss $<1$) and the \emph{loss integral} $\sum_t \mathrm{loss}(t)$ ---
-lower means troops spent less time out of place, i.e.\ the average-arrival-time
-criterion that motivates the Kantorovich objective
+% Transport solver benchmark -- generated tables/figures under results/transport/
+
+\subsection{Protocol}
+
+A single player, production and combat disabled, must redistribute troops from
+an initial to a target distribution on six preset instances (star, path,
+bipartite, and three Poisson-map scenarios). Per tick we record the $L^1$ loss
+to target; scores are \emph{ticks to converge} (first tick with loss $<1$) and
+the \emph{loss integral} $\sum_t \mathrm{loss}(t)$ --- lower means troops
+spent less time out of place, i.e.\ the average-arrival-time criterion that
+motivates the Kantorovich objective
 \citep{kantorovich1942,villani2009,peyre2019}.
 
 Two solvers compete. \emph{Greedy} descends a potential field obtained by
 solving a graph Poisson equation on the deficit --- the dynamical,
-Benamou--Brenier-flavored view of the problem \citep{benamou2000}.
-\emph{OT} solves a min-cost flow \citep{dantzig1963,orlin1997} with
-successive-shortest-path/Johnson potentials \citep{johnson1977}, production
+Benamou--Brenier-flavored view of the problem \citep{benamou2000}. \emph{OT}
+solves a min-cost flow \citep{dantzig1963,orlin1997} with
+successive-shortest-path/Johnson potentials \citep{johnson1977} and production
 saturation via Frank--Wolfe \citep{frankwolfe1956}, the fixed-point scheme
 first used for traffic assignment \citep{leblanc1975}. Load-dependent transit
 (bigger groups move slower) places the true problem in the flows-over-time
-regime of \citet{koehler2002}, which neither solver models exactly.
+regime of \citet{koehler2002}, which neither solver models exactly --- a gap
+the case study below makes visible.
+
+\subsection{Results}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{\resultsfig{transport/figures/loss_curves.pdf}}
+\caption{$L^1$ loss over time per preset (log scale), greedy vs.\ OT. Note the
+three regimes: sharp full convergence (star, bipartite/OT), separated tails
+(both distributed Poisson scenarios), and the two anomalies --- the identical
+staircase on \code{path\_end} and the identical overlap on
+\code{capital\_rush}.}
+\label{fig:transport-curves}
+\end{figure}
 
 \begin{table}[ht]
 \centering
 \resultstable{transport/tables/transport}
-\caption{Transport convergence by preset: ticks to converge (``--'' = never
-within 800 ticks) and loss integral. Lower is better.}
+\caption{Ticks to converge (``--'' = never within 800 ticks) and loss
+integral. Lower is better.}
 \label{tab:transport}
 \end{table}
 
-\textbf{Reading.} OT wins where structure matters: it converges nearly twice
-as fast on the star ($136$ vs.\ $257$ ticks), is the only solver to converge on
-the bipartite split, and carries a 7--9\% lower loss integral on the two
-distributed Poisson scenarios. On \code{capital\_rush} (single sink) the two
-are equivalent --- with one destination, gradient descent \emph{is} the
-shortest path. The \code{path\_end} preset is anomalous: both solvers plateau
-at a loss of 800 and never converge; this looks like a preset or solver bug
-rather than a ranking signal and is flagged in \S\ref{sec:open}.
+\subsection{Reading}
+
+OT wins where routing structure matters. On the star it converges in nearly
+half the time (136 vs.\ 257 ticks; the greedy curve shows a visible plateau
+around loss 40 before its final drop). On the bipartite split OT falls off a
+cliff to zero at tick 382 while greedy strands a residue of $\sim$34 troops
+indefinitely. On the two distributed Poisson scenarios the curves separate
+after $\sim$tick 400 and OT's tail accelerates away --- a 7--9\% lower loss
+integral and a $2$--$3\times$ lower final loss.
+
+The two anomalies are as informative as the wins. On \code{capital\_rush}
+(everything to one sink) the curves overlap exactly: with a single
+destination, gradient descent \emph{is} shortest-path routing, so the OT
+machinery buys nothing --- a useful sanity check that the solvers agree when
+the problem is trivial. On \code{path\_end} both solvers produce the
+\emph{identical} staircase --- loss drops in $\sim$200-unit steps roughly
+every 150 ticks, then freezes at exactly 800 --- which indicts the
+environment, not the solvers. The stepped shape is consistent with the mass
+moving as one large, therefore slow, group down the path (speed
+$\propto 1/\text{count}$): each step is the blob crossing one edge, and the
+freeze is it becoming effectively stationary --- precisely the load-dependent
+transit-time effect of \citet{koehler2002}. Confirming this with
+\code{gym\_transport\_diag} is \S\ref{sec:open}, item 4.

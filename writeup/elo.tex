@@ -1,68 +1,150 @@
-% Bot ladder -- generated tables from results/elo/
-\textbf{Benchmark.} Full-game strength, the ground-truth metric every other
-section proxies. All registered models compete except \code{v2\_knapsack} and
-\code{v3}, which are code-identical to \code{v4}. Each game is three-player on
-a fresh Poisson map: one model plays \emph{solo} against two copies of its
-opponent, and scores 1 if it holds strictly more nodes when the game ends
-(elimination or 5000 ticks), $\tfrac12$ on a tie. The 1-vs-2 protocol is
-deliberately hostile: surviving a coordinated majority is a stronger signal
-than a symmetric duel at these game counts. Every unordered pair plays a fixed
-number of games, half solo on each side, with deterministic seeds.
+% Bot ladder -- generated tables/figures under results/elo/ and results/case_studies/
+
+\subsection{Protocol}
+\label{sec:elo-protocol}
+
+Full-game strength is the ground truth that every other section proxies. All
+registered models compete except \code{v2\_knapsack} and \code{v3}, which are
+code-identical to \code{v4}. Each game is three-player on a fresh Poisson map:
+one model plays \emph{solo} against two copies of its opponent and scores 1 if
+it holds strictly more nodes when the game ends (elimination or 5000 ticks),
+$\tfrac12$ on a tie. The 1-vs-2 protocol is deliberately hostile --- surviving
+a coordinated majority is a stronger signal than a symmetric duel at these
+game counts. Each unordered pair plays four games, half solo on each side,
+with deterministic seeds; the full log is \code{results/elo/raw/games.csv}.
 
 Ratings are fit by maximum likelihood under a Bradley--Terry model
 \citep{bradleyterry1952} via minorization--maximization \citep{hunter2004} on
-the aggregate score matrix, then mapped onto the familiar Elo scale
-($1500 + 400\log_{10} p$) \citep{elo1978}. Unlike sequential K-factor updates,
-the fit is independent of game order and exactly reproducible from
-\code{raw/games.csv}.
+the aggregate score matrix, then mapped onto the Elo scale
+($1500 + 400\log_{10}p$) \citep{elo1978}. Unlike sequential K-factor updates,
+the fit is independent of game order and exactly reproducible from the log.
+
+\subsection{The ladder}
+\label{sec:elo-ladder}
 
 \begin{table}[ht]
 \centering
 \resultstable{elo/tables/elo_table}
-\caption{Bot ladder: Bradley--Terry ratings on the Elo scale. ``Score rate''
-is the model's mean score per game across all opponents.}
+\caption{Bradley--Terry ratings on the Elo scale. ``Score rate'' is mean score
+per game across all opponents. Read in tiers: with four games per pair, gaps
+under $\sim$100 Elo are noise, and the extreme negative values at the bottom
+are scale artifacts of near-zero score rates.}
 \label{tab:elo}
 \end{table}
 
-\begin{table}[ht]
-\centering
-\small
-\resultstable{elo/tables/win_matrix}
-\caption{Pairwise score rates (row vs.\ column), models ordered by rating.
-Model names abbreviated: \code{v1k} = \code{v1\_knapsack}, \code{v1kh} =
-hybrid, \code{v5q}/\code{v5qc} = QUBO/composite.}
-\label{tab:winmatrix}
-\end{table}
-
-\textbf{Reading.} Four headlines, to be read in tiers (with four games per
-pair, gaps under $\sim$100 Elo are noise; the extreme negative ratings at the
-bottom are Bradley--Terry scale artifacts of near-zero score rates, not
-meaningful magnitudes).
+Four headlines:
 
 \begin{enumerate}
   \item \textbf{\code{v8} tops the ladder} (score rate 0.90) --- and \code{v8}
     is the \emph{only} model using the distance-decayed local softmax, a
-    branch the lineage abandoned when v9 pivoted to OT transport. The single
-    most valuable tweak tested is currently unused by every later model;
-    combining \code{v8}'s softmax with \code{v12}'s transport is the most
-    obvious unexplored bot.
+    branch abandoned when v9 pivoted to OT transport. The most valuable single
+    tweak tested is currently unused by every later model.
   \item \textbf{OT transport is the strongest lineage trunk}: \code{v9},
-    \code{v12}, \code{v10} fill ranks 2--5 and all clear every pre-OT model
-    except \code{v8}.
-  \item \textbf{\code{v11} is a regression, not noise} (0.17, adrift from both
-    its parent \code{v10} at 0.65 and its child \code{v12} at 0.75). The only
-    delta is effective-troops demand netting; the natural suspect is
-    demand starvation --- in-transit troops cancel demand before they arrive,
-    so targets stop pulling reinforcements --- which \code{v12}'s standing
-    frontline-garrison demand would mask. This wants a diagnosis before the
-    netting is trusted anywhere.
+    \code{v12}, \code{v10} fill ranks 2--5 and clear every pre-OT model except
+    \code{v8}.
+  \item \textbf{\code{v11} is a regression, not noise} (0.17, adrift from
+    parent \code{v10} at 0.65 and child \code{v12} at 0.75) --- dissected in
+    \S\ref{sec:elo-v11}.
   \item \textbf{Pacifism is underrated at these game counts}:
-    \code{v0\_expansion}, which has no war agent at all, sits mid-table at
-    0.60, above \code{v4}--\code{v6}. In the 1-vs-2 protocol, not initiating
-    fights while out-expanding is evidently a viable strategy; the knapsack-era
-    aggressors (\code{v1\_knapsack}, hybrid) are the losers of the entire
-    tournament.
+    \code{v0\_expansion}, which has no war agent at all, sits mid-table above
+    \code{v4}--\code{v6}; the knapsack-era aggressors are the tournament's
+    losers.
 \end{enumerate}
 
-The raw game log and manifest under \code{results/elo/} suffice to re-fit or
-extend the ladder without re-playing anything.
+\subsection{How transitive is the game? (HodgeRank)}
+\label{sec:elo-hodge}
+
+A scalar rating assumes the tournament is a gradient: everyone's strength
+lies on one axis. The pairwise data can measure that assumption. Take the
+skew-symmetric edge flow $Y_{ij} = (\text{score rate of } i \text{ over }
+j) - \tfrac12$ on the complete comparison graph and Hodge-decompose it
+\citep{jiang2011}: a gradient part (explained by a potential $s_i$, i.e.\ by
+\emph{some} ranking) plus a residual, which on a complete graph is pure curl
+--- local rock-paper-scissors cycles that no ranking can represent.
+
+The result: the gradient explains \textbf{\hodgetransitivity} of the flow's
+energy; \textbf{\hodgecurl{} of the tournament is cyclic}. The Hodge potential
+and the Bradley--Terry fit agree exactly on order (Spearman
+$\rho = \hodgespearman$; Figure~\ref{fig:hodge}), so Elo is not mis-ranking
+anyone --- the \hodgecurl{} is simply invisible to \emph{any} scalar rating,
+a property of the game, not of the estimator.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.62\textwidth]{\resultsfig{elo/figures/hodge_vs_elo.pdf}}
+\caption{Hodge potential vs.\ Bradley--Terry rating. The monotone relationship
+(Spearman $\rho = \hodgespearman$) says the two scalar summaries agree; the
+interesting information is what neither can hold --- the cyclic
+\hodgecurl{} quantified by the decomposition.}
+\label{fig:hodge}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\resultstable{elo/tables/curl_triangles}
+\caption{Largest-curl triangles (residual flow around the 3-cycle, in
+score-rate units; $\pm\tfrac32$ is the maximum possible). The podium itself
+cycles: \code{v12} beats \code{v8} beats \code{v9} beats \code{v12}.}
+\label{tab:curl}
+\end{table}
+
+\subsection{Case study: the podium cycle}
+\label{sec:elo-podium}
+
+The top three form one of the largest cycles in the tournament
+(Table~\ref{tab:curl}): head-to-head, \code{v9} took its pair against
+\code{v8} 0.75, despite \code{v8} out-rating it against the field.
+Figure~\ref{fig:v9v8} replays tournament game 1272 (\code{v8} solo vs.\ two
+\code{v9}). The game is decided almost immediately: \code{v8} expands fastest
+off the start --- peaking near 75 nodes by tick 250 --- but is torn apart in
+the first contact wars and eliminated by tick $\sim$600. Everything after is
+the two \code{v9} copies partitioning the map (the solid copy plateaus around
+240 nodes and wins the node count at timeout). The qualitative lesson: losses
+in this protocol are not slow grinds but early-war collapses, so whatever
+edge \code{v8}'s local softmax buys against the field, it does not survive
+simultaneous pressure from two OT-supplied fronts on this map.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v9_beats_v8.pdf}}
+\caption{Tournament game 1272 replayed: \code{v8} solo (blue) vs.\ two
+\code{v9} copies (green, solid/dashed). Left: total troops; right: nodes held.}
+\label{fig:v9v8}
+\end{figure}
+
+\subsection{Case study: the \code{v11} regression, with counterfactual}
+\label{sec:elo-v11}
+
+\code{v11} differs from \code{v10} by exactly one feature: OT demands are
+netted against \emph{effective} (in-transit-inclusive) troop counts.
+Figure~\ref{fig:v11} replays tournament game 1301, which \code{v11} lost, and
+then replays the \emph{same seed, same map, same slot, same opponents} with
+\code{v12} substituted --- a single-variable comparison, since \code{v12} is
+\code{v11} plus a standing frontline-garrison demand.
+
+The contrast is stark. In the tournament game, \code{v11}'s trajectory is
+nearly indistinguishable from the \emph{losing} \code{v10} copy --- both
+expand to $\sim$100 nodes by tick 300 and are wiped out by tick 1000 while
+the surviving \code{v10} sweeps the map. \code{v11} does not exhibit a
+visibly pathological curve; it simply fights like a mid-tier bot and loses.
+But substitute \code{v12} into the identical position and the same game is a
+rout \emph{in the other direction}: all 347 nodes by tick 1000, both
+\code{v10} copies dead by tick 900. One added demand term converts this map
+from a loss into total domination, and in aggregate from a 0.17 score rate to
+0.75. The mechanism this implicates --- with netting alone, arriving
+reinforcements cancel the very demands that summoned them, so contested nodes
+stop pulling troops exactly when they need them, while \code{v12}'s standing
+garrison demand keeps the pull alive --- fits both the aggregate and the
+counterfactual, but remains a hypothesis until the OT demands are instrumented
+directly in a replayed game (\S\ref{sec:open}, item 2).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v11_stall.pdf}}\\[2pt]
+\includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v12_counterfactual.pdf}}
+\caption{Controlled counterfactual on tournament seed 1301. Top: \code{v11}
+solo (blue) vs.\ two \code{v10} (green) --- the tournament game, a loss.
+Bottom: \code{v12} in the identical slot --- a rout in the other direction.
+The only delta between the two solo models is the frontline-garrison demand.}
+\label{fig:v11}
+\end{figure}
