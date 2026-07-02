@@ -1,0 +1,19 @@
+{
+  "git_sha": "f3eb7fcfab264385ce5f413cc04844cea9b86e3a",
+  "date_utc": "2026-07-02T16:13:57.714338+00:00",
+  "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/elo/archetypes.py --games-per-pair=12",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "models": [
+      "arch_rock",
+      "arch_paper",
+      "arch_scissors"
+    ],
+    "games_per_pair": 12,
+    "dt": 16,
+    "base_seed": 9000,
+    "protocol": "symmetric 1v1 duel",
+    "hypothesis": "rock>scissors, scissors>paper, paper>rock"
+  }
+}

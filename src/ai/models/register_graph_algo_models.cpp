@@ -8,6 +8,7 @@ extern void register_v9();
 extern void register_v10();
 extern void register_v11();
 extern void register_v12();
+extern void register_archetypes();
 
 void register_graph_algo_models() {
     register_v5_qubo();
@@ -17,4 +18,5 @@ void register_graph_algo_models() {
     register_v10();
     register_v11();
     register_v12();
+    register_archetypes();
 }

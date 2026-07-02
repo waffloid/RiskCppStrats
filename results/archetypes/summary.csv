@@ -1,0 +1,4 @@
+model_a,model_b,score_rate_a,games,predicted,observed,verdict
+arch_rock,arch_scissors,1.000,12,>,>,confirmed
+arch_scissors,arch_paper,0.000,12,>,<,REFUTED
+arch_paper,arch_rock,1.000,12,>,>,confirmed

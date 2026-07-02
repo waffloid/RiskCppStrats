@@ -16,6 +16,7 @@
 \input{../results/elo/hodge_macros.tex}
 \input{../results/elo_duel/hodge_macros.tex}
 \input{../results/elo_duel/protocol_macros.tex}
+\input{../results/elo_duel/cycle_macros.tex}
 
 \title{CRisky: Empirical Benchmarks\\
   \large Scores and rankings for bots, economy, transport, ordering, and combat}
@@ -116,6 +117,11 @@ confidence intervals; each section notes what a longer run would sharpen.
   \item \textbf{Symmetrize the combat battery.} The \code{v4} self-play
     control exposes a strong player-1 map bias (\S\ref{sec:combat}); play both
     slots per matchup.
+  \item \textbf{Give garrisons an opportunity cost.} The RPS posture cycle
+    fails at exactly one edge --- scissors never out-builds paper --- because
+    parked troops are free (\S\ref{sec:elo-cycles}). Upkeep or
+    production-diversion would make the posture wheel live; an
+    attack-suppression knob in ModelConfig would make it cleanly testable.
 \end{enumerate}
 
 \bibliographystyle{plainnat}

@@ -115,6 +115,73 @@ splits.}
 \label{tab:curl}
 \end{table}
 
+\subsection{What drives the intransitivity?}
+\label{sec:elo-cycles}
+
+Two probes: a spectral one on the tournament we have, and a controlled
+experiment on a hypothesis about \emph{why}.
+
+\paragraph{The curl is one cycle, and it is organized by posture.}
+The curl matrix is real antisymmetric, so it decomposes into independent
+planar rotations --- each eigenplane is one cycle. Projecting the models onto
+the leading plane (the ``gamescape'' construction of \citealp{balduzzi2019};
+cf.\ \citealp{czarnecki2020}) shows a strikingly low-dimensional structure:
+\textbf{the leading plane carries \cycleplaneshareduel{} of the curl energy}
+--- essentially one game-wide cycle rather than many local ones
+(Figure~\ref{fig:cyclic-plane}). And the phase ordering around that cycle
+clusters by strategic posture: the war-first knapsack models sit together
+(0--40$^\circ$), the OT podium together (88--116$^\circ$), and the
+economy-first mid-table together (180--250$^\circ$). Intransitivity in this
+game is not diffuse noise; it is a single rotation through posture space.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.6\textwidth]{\resultsfig{elo_duel/figures/cyclic_plane.pdf}}
+\caption{Models on the leading cyclic plane of the duel tournament's curl
+(distance from origin = participation in the dominant cycle; angular order =
+position in it). Posture families cluster in phase.}
+\label{fig:cyclic-plane}
+\end{figure}
+
+\paragraph{Testing the rock--paper--scissors hypothesis.} A candidate
+mechanism (Joel's, predating these experiments) maps the game onto RPS:
+\emph{rock} = aggressive; \emph{paper} = defensive but distrustful (stacks
+borders); \emph{scissors} = defensive and trusting (just builds). Predicted:
+rock $>$ scissors (steamroll), scissors $>$ paper (leaner allocation), paper
+$>$ rock (defender's advantage). The nearest existing models
+(\code{v1\_knapsack}/\code{v0\_expansion}/\code{v12}) are useless for testing
+this --- they differ in chassis quality (economy, transport era), and indeed
+that triple is perfectly transitive in both tournaments (\code{v12} $>$
+\code{v0} $>$ \code{v1k}, 8/8 each). So we built three archetypes on
+\emph{one} chassis (v12's QUBO economy + OT transport,
+\code{src/ai/models/archetypes.cpp}) differing only in posture, and played
+the triangle (12 duels per pair, Table~\ref{tab:archetypes}).
+
+\begin{table}[ht]
+\centering
+\resultstable{archetypes/tables/archetypes}
+\caption{Archetype triangle, posture isolated on a fixed chassis. Score rate
+is for the first-named archetype.}
+\label{tab:archetypes}
+\end{table}
+
+Two of three edges confirm the theory --- rock sweeps scissors 12/12
+(steamroll), paper sweeps rock 12/12 (defender's advantage) --- but the
+linchpin edge fails: \textbf{paper also sweeps scissors 12/12, so there is no
+cycle; border-stacking dominates}. The diagnosis is mechanical: in the
+current rules, garrisoned troops have \emph{no opportunity cost} --- they are
+not consumed, do not decay, and do not reduce production --- so ``resources
+more efficiently allocated to building'' never cashes out. (One
+implementation caveat: \code{war\_pool\_weight} scales the distribution pull
+toward fronts but not the war agent's \emph{direct} attack commands, so
+\code{arch\_paper} still attacks opportunistically; a clean test of
+``defensive but distrustful'' wants an attack-suppression knob.) The RPS
+wheel your intuition describes would light up in a variant where garrisons
+cost something --- upkeep, or production diverted --- which is a game-design
+lever, not a bot fix (\S\ref{sec:open}, item 7). Meanwhile the intransitivity
+that actually exists lives higher in the stack: the podium's
+softmax-vs-transport near-cycle of \S\ref{sec:elo-hodge}.
+
 \subsection{Case study: the podium cycle}
 \label{sec:elo-podium}
 

@@ -178,6 +178,7 @@ add_library(crisky_graph_algo STATIC
     src/ai/models/v10.cpp
     src/ai/models/v11.cpp
     src/ai/models/v12.cpp
+    src/ai/models/archetypes.cpp
     src/ai/models/register_graph_algo_models.cpp
 )
 target_include_directories(crisky_graph_algo PUBLIC src/)
