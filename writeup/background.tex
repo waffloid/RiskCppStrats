@@ -1,11 +1,12 @@
 % Background & methodology: everything the rest of the report assumes.
 
 This section is the vocabulary for the rest of the report: how the game
-works, how the bots decide, who the thirteen bots are --- one model at a
-time, introducing each idea where the lineage first needed it --- and how we
-score things.
+works, how the bots decide, and who the thirteen bots are ---
+one model at a time, introducing each idea where the lineage first needed
+it. (How games become ratings is deferred to Chapter~\ref{ch:ladder},
+where it is used.)
 
-\subsection{The game, in one paragraph}
+\section{The game, in one paragraph}
 \label{sec:bg-game}
 
 Players compete for territory on a random geometric graph --- scattered
@@ -18,7 +19,7 @@ they grind each other down until one side is gone. A player loses when they
 have no troops left. There is no diplomacy and no fog of war: the entire
 state is visible to everyone.
 
-\subsection{How every bot decides}
+\section{How every bot decides}
 \label{sec:bg-bots}
 
 All thirteen bots share one skeleton, three stages per tick:
@@ -42,7 +43,7 @@ What distinguishes the models is which agents run, how scores become
 targets, and which solver moves the troops. That is the story of the
 lineage.
 
-\subsection{The models, one at a time}
+\section{The models, one at a time}
 \label{sec:bg-lineage}
 
 The lineage reads best as an \emph{ablation study}: each model adds
@@ -132,7 +133,7 @@ discounts each target's pull by distance, so nodes compete only with nearby
 rivals and each region feeds its own best target
 (Figure~\ref{fig:bg-softmax}b): an army that fights on several fronts at
 once instead of over-committing to the single shiniest objective. By the
-ladder of \S\ref{sec:elo} this is the most valuable feature any model
+ladder of Chapter~\ref{ch:ladder} this is the most valuable feature any model
 tested --- and no later model kept it.
 
 \begin{figure}[htbp]
@@ -209,40 +210,18 @@ code-identical to \code{v4} and excluded; \code{v5\_qubo\_composite} is a
 \label{tab:lineage}
 \end{table}
 
-\subsection{How we rate bots}
-\label{sec:bg-rating}
-
-Bots play round-robin tournaments (fixed seeds, both sides of every
-matchup). To turn game results into a ranking we fit a Bradley--Terry model
-\citep{bradleyterry1952}: assume each bot $i$ has a strength $p_i$ and that
-$i$ beats $j$ with probability $p_i/(p_i+p_j)$, then find the strengths that
-make the observed results most likely \citep{hunter2004}. We report
-strengths on the familiar Elo scale \citep{elo1978}. This differs from
-chess-style Elo updates only in being fit to the whole tournament at once:
-the result does not depend on game order and is exactly reproducible from
-the game log.
-
-A one-number rating assumes strength is one-dimensional --- that if A
-usually beats B and B usually beats C, then A usually beats C. That
-assumption can fail (rock--paper--scissors), and \S\ref{sec:transitivity}
-measures \emph{how much} it fails here: the tournament's pairwise results
-are split into a part explainable by some ranking and a leftover made of
-cycles (the Hodge decomposition of \citealp{jiang2011}), and the cycles are
-then mapped out \citep{balduzzi2019}. The mathematics lives in
-\S\ref{sec:transitivity}; nothing there is needed to read the ladder.
-
-\subsection{Instruments}
+\section{Instruments}
 \label{sec:bg-instruments}
 
 Three kinds of evidence appear throughout:
 
 \begin{itemize}
-  \item \textbf{Tournaments} rate whole bots (\S\ref{sec:elo},
-    \S\ref{sec:transitivity}), and lineage-step head-to-heads within them
+  \item \textbf{Tournaments} rate whole bots (Chapter~\ref{ch:ladder},
+    Chapter~\ref{ch:limits}), and lineage-step head-to-heads within them
     serve as ablations (\S\ref{sec:elo-ablation}).
   \item \textbf{Gyms} score a single component --- economy, transport,
     ordering, combat --- in isolation, on synthetic instances
-    (\S\ref{sec:components}). Gym scores are diagnostics: twice in this
+    (Chapter~\ref{ch:components}). Gym scores are diagnostics: twice in this
     report a gym and the ladder disagree, and both disagreements are
     informative.
   \item \textbf{Replays} re-run a specific game from its seed, optionally

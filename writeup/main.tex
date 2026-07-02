@@ -1,6 +1,6 @@
-\documentclass[11pt]{article}
+\documentclass[11pt]{report}
 
-\usepackage[margin=1.1in]{geometry}
+\usepackage[margin=1.15in]{geometry}
 \usepackage{amsmath, amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
@@ -8,6 +8,11 @@
 \usepackage[round]{natbib}
 \usepackage{xcolor}
 \usepackage[section]{placeins}
+\usepackage{titlesec}
+
+% Chapters without the oversized default display.
+\titleformat{\chapter}[hang]{\huge\bfseries}{\thechapter\quad}{0pt}{\huge\bfseries}
+\titlespacing*{\chapter}{0pt}{0pt}{28pt}
 
 % Floats: keep figures near their text instead of drifting to the end.
 \renewcommand{\topfraction}{0.9}
@@ -18,6 +23,9 @@
 \setcounter{totalnumber}{5}
 
 \newcommand{\code}[1]{\texttt{#1}}
+% The italic orientation block that opens every chapter.
+\newcommand{\chapterlead}[1]{%
+  \begin{quote}\itshape #1\end{quote}\medskip}
 % Generated artifacts, relative to this file.
 \newcommand{\resultstable}[1]{\input{../results/#1}}
 \newcommand{\resultsfig}[1]{../results/#1}
@@ -43,79 +51,124 @@
 CRisky is a real-time strategy game on graphs, and a family of bots that play
 it by decomposing the game into solvable pieces. This report benchmarks all
 of it. It asks four questions: which bot is strongest (a round-robin
-tournament with proper ratings); how much of the game any rating can capture
+tournament with proper ratings, read both as a ladder and as an ablation
+study over the bot lineage); how much of the game any rating can capture
 (about four-fifths --- the rest is rock-paper-scissors-like cycles, which we
 locate and probe with controlled experiments); whether the component solvers
 --- economy, transport, ordering, combat --- earn their keep in isolation;
 and what the benchmarks reveal about the game itself (three mechanics with
 design consequences). Statistics are paired with replayed single games
-throughout, and every number regenerates from committed code, seeds, and
-manifests.
+throughout, and every number and figure regenerates from committed code,
+seeds, and manifests.
 \end{abstract}
 
-\section{Introduction}
-\label{sec:intro}
+\tableofcontents
 
-This report answers four questions, one per section:
+\chapter{Introduction}
+\label{ch:intro}
 
-\begin{enumerate}
-  \item \textbf{Which bot is strongest?} (\S\ref{sec:elo}) A tournament and a
-    defensible rating.
-  \item \textbf{How much can a rating capture?} (\S\ref{sec:transitivity})
-    Ratings assume ``better'' is one-dimensional; we measure how true that is
-    here, find the cycles that break it, and test a theory of why they exist.
-  \item \textbf{Do the component solvers earn their keep?}
-    (\S\ref{sec:components}) Each engine component --- economy, transport,
-    ordering, combat --- has competing solvers; each gets a score and a
-    ranking.
-  \item \textbf{What did we learn about the game itself?}
-    (\S\ref{sec:findings}) Benchmarking kept surfacing facts about the
-    \emph{rules} rather than the bots; the closing section collects them,
-    with next steps.
-\end{enumerate}
+This report exists to make CRisky empirical: wherever the codebase holds a
+litany of competing proposals --- thirteen bot versions, four layout
+solvers, two transport solvers, four build orderings --- it should be a
+measurement, a score, and a ranking, not a hunch. The report is organized
+around four questions, and each chapter answers one.
 
-Everything the report assumes --- how the game works, how the bots decide,
-who the thirteen bots are, and how the ratings are computed --- is in
-\S\ref{sec:background}. If a term is unclear anywhere, its definition is
-there.
+\emph{Which bot is strongest?} Chapter~\ref{ch:ladder} runs two round-robin
+tournaments and fits a proper rating. Because the bot lineage grew one
+feature at a time, the same tournament data supports a second reading:
+each lineage step's head-to-head is an ablation, the marginal value of one
+idea with everything else held fixed. The chapter ends on an anomaly ---
+one mid-lineage bot sits hundreds of points below both its parent and its
+child --- and dissects it with a controlled replay experiment.
 
-\section{Background and methodology}
-\label{sec:background}
+\emph{How much can any rating capture?} A rating assumes ``better'' is
+one-dimensional. Chapter~\ref{ch:limits} builds, slowly, the mathematics
+for measuring that assumption --- rankings as altitude, cycles as the
+obstruction --- and then applies it: about a fifth of this game is cyclic,
+the cycles concentrate in a single wheel organized by strategic posture,
+and a controlled archetype experiment traces the wheel to a game-design
+fact.
+
+\emph{Do the component solvers earn their keep?} Chapter~\ref{ch:components}
+scores each engine component --- economy, transport, ordering, combat ---
+in its own gym. Twice, the gym and the tournament disagree about what is
+good; both disagreements teach something.
+
+\emph{What did we learn about the game itself?} Benchmarking kept surfacing
+facts about the rules rather than the bots. Chapter~\ref{ch:findings}
+collects them, with next steps.
+
+Two habits run through everything. First, every sweeping statistic is
+paired with a zoom-in: single games, replayed by seed from the tournament
+logs, so the anecdotes come from the same population as the statistics.
+Second, gym scores are treated as diagnostics, never as objectives --- the
+tournament is the only ground truth. Everything the report assumes --- how
+the game works, how the bots decide, who the thirteen bots are --- is built
+in Chapter~\ref{ch:background}; if a term is unclear anywhere, its
+definition is there.
+
+\chapter{The Game and Its Bots}
+\label{ch:background}
+\chapterlead{Vocabulary for everything that follows: the game in a
+paragraph, the three-stage skeleton every bot shares, and the thirteen bots
+introduced one at a time --- each idea (knapsack war, frustrated layouts,
+local attention, optimal transport) presented at the model that needed it.
+Nothing here is a result; all of it is assumed later.}
 \input{background}
 
-\section{The ladder: who wins?}
-\label{sec:elo}
+\chapter{The Ladder: Who Wins?}
+\label{ch:ladder}
+\chapterlead{This chapter answers the headline question. It first explains
+how games become ratings and why we ran two tournament protocols
+(\S\ref{sec:elo-protocol}); then the ranking itself, read in tiers
+(\S\ref{sec:elo-ladder}); then the same data re-read as an ablation study
+over the lineage (\S\ref{sec:elo-ablation}); and finally a controlled
+replay experiment dissecting the ladder's strangest datum
+(\S\ref{sec:elo-v11}). It ends on a puzzle the ranking cannot resolve ---
+a three-way tie at the top --- which the next chapter takes up.}
 \input{ladder}
 
-\section{The limits of a rating: intransitivity and its source}
-\label{sec:transitivity}
+\chapter{The Limits of a Rating}
+\label{ch:limits}
+\chapterlead{A rating compresses a tournament into one number per player,
+which is only faithful if ``better'' is one-dimensional. This chapter
+measures how true that is for CRisky. \S\ref{sec:rank-primer} builds the
+needed mathematics gently --- rankings as altitude, cycles as the
+obstruction, and how a tournament splits exactly into the two.
+\S\ref{sec:elo-hodge} then measures the split, \S\ref{sec:elo-cycles} maps
+the cyclic part and finds a single posture-organized wheel,
+\S\ref{sec:elo-podium} watches the wheel turn in one replayed game, and
+\S\ref{sec:elo-rps} tests a proposed mechanism with controlled archetypes
+--- ending at a game-design lever rather than a bot fix.}
 \input{transitivity}
 
-\section{Component benchmarks}
-\label{sec:components}
-
-Each engine component has competing solver proposals; each gets a gym, a
-score, and a ranking. Reminder from \S\ref{sec:bg-instruments}: gym scores
-are diagnostics for ordering proposals within a component, not the
-objective. This section contains two deliberate demonstrations of the gap:
-the economy gym's best layout objective powers weaker bots than a worse one
-(\S\ref{sec:economy}), and the combat battery's control row shows the maps
-themselves carry more signal than most matchups (\S\ref{sec:combat}).
-
+\chapter{Component Benchmarks}
+\label{ch:components}
+\chapterlead{Each engine component has competing solver proposals; each
+gets a gym, a score, and a ranking. Gym scores are diagnostics for ordering
+proposals within a component, not objectives --- and this chapter contains
+two deliberate demonstrations of the gap: the economy gym's best layout
+objective powers weaker bots than a worse one (\S\ref{sec:economy}), and
+the combat battery's control row shows the maps themselves carry more
+signal than most matchups (\S\ref{sec:combat}).}
 \input{economy}
 \input{transport}
 \input{ordering}
 \input{combat}
 
-\section{Findings and next steps}
-\label{sec:findings}
+\chapter{Findings and Next Steps}
+\label{ch:findings}
 \label{sec:open}
+\chapterlead{What we now know that we did not before --- about the bots,
+about the game's rules, and about the benchmarks themselves --- each with
+its queued next step.}
 
-\paragraph{About the bots.}
+\section*{About the bots}
 \begin{enumerate}
   \item \textbf{Build the missing bot.} \code{v8}'s local softmax and
-    \code{v12}'s OT transport are the two strongest single features, they
-    are compatible, and no bot has both (\S\ref{sec:elo-ladder}).
+    \code{v12}'s OT transport are the two strongest single features by the
+    ablation ladder, they are compatible, and no bot has both
+    (\S\ref{sec:elo-ablation}).
   \item \textbf{Confirm the \code{v11} diagnosis before reusing its
     feature.} The replay experiment of \S\ref{sec:elo-v11} pins the ladder
     collapse on ``stop requesting once help is on the way''; the proposed
@@ -127,8 +180,9 @@ themselves carry more signal than most matchups (\S\ref{sec:combat}).
     extended log at no extra cost.
 \end{enumerate}
 
-\paragraph{About the game.} Three rule-level facts surfaced as side effects
-of benchmarking, each with a design lever:
+\section*{About the game}
+Three rule-level facts surfaced as side effects of benchmarking, each with
+a design lever:
 \begin{enumerate}
   \setcounter{enumi}{3}
   \item \textbf{Parked troops are free.} Holding a large standing army costs
@@ -146,7 +200,7 @@ of benchmarking, each with a design lever:
     beat gym-optimal ones (\S\ref{sec:economy}).
 \end{enumerate}
 
-\paragraph{About the benchmarks.}
+\section*{About the benchmarks}
 \begin{enumerate}
   \setcounter{enumi}{6}
   \item \textbf{Symmetrize the combat battery} --- the self-play control

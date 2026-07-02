@@ -1,12 +1,15 @@
-% The ladder: who wins. Tables under results/elo_duel/ (1v1) and results/elo/
+% Chapter: The Ladder. Tables under results/elo_duel/ (1v1) and results/elo/
 % (free-for-all); case-study figures under results/case_studies/.
 
-\subsection{Protocol}
+\section{From games to ratings}
 \label{sec:elo-protocol}
 
-All thirteen models of Table~\ref{tab:lineage} compete. Two tournaments were
-run with the same harness, seeds, and size (312 games each; four per pairing,
-sides alternated, deterministic seeds):
+Before any table: what exactly are we measuring, and how do games become
+numbers?
+
+\paragraph{The protocols.} All thirteen models of Table~\ref{tab:lineage}
+compete. Two tournaments were run with the same harness, seeds, and size
+(312 games each; four per pairing, sides alternated, deterministic seeds):
 
 \begin{itemize}
   \item \textbf{Duel} (headline): symmetric 1v1 on a fresh random map;
@@ -15,24 +18,37 @@ sides alternated, deterministic seeds):
   \item \textbf{Free-for-all} (secondary): three players --- the rated bot
     in one seat, two \emph{independent, uncoordinated} copies of its
     opponent in the others; the rated bot scores against the
-    better-performing copy. A deliberately hostile environment; kept because
-    it turns out to discriminate where the duel cannot.
+    better-performing copy. A deliberately hostile environment; kept
+    because it turns out to discriminate where the duel cannot.
 \end{itemize}
 
-Ratings are the Bradley--Terry fit of \S\ref{sec:bg-rating}, computed per
-tournament from the logs under \code{results/elo\_duel/} and
-\code{results/elo/}.
+The atomic quantity throughout is a pairing's \emph{score rate}: the
+average score (win $=1$, tie $=\tfrac12$) one model achieves against
+another over their games. A score rate of 0.75 means ``wins three games in
+four against this opponent.''
 
-\subsection{The ranking}
+\paragraph{From score rates to a rating.} To compress 78 pairings into one
+number per bot we fit a Bradley--Terry model \citep{bradleyterry1952}:
+assume each bot $i$ has a strength $p_i$ and that $i$ beats $j$ with
+probability $p_i/(p_i+p_j)$, then find the strengths that make the observed
+results most likely \citep{hunter2004}, reported on the familiar Elo scale
+\citep{elo1978}. This differs from chess-style Elo updates only in being
+fit to the whole tournament at once: the result does not depend on game
+order and is exactly reproducible from the game log. Two reading rules
+follow from the fit. First, with four games per pairing, small rating gaps
+are noise --- read the ladder in tiers. Second, when a bot loses nearly
+everything, its fitted strength runs off toward $-\infty$; the extreme
+negative values at the bottom of the table are scale artifacts, not
+meaningful magnitudes.
+
+\section{The ranking}
 \label{sec:elo-ladder}
 
 \begin{table}[htbp]
 \centering
 \resultstable{elo_duel/tables/ladder_combined}
 \caption{The ladder under the duel protocol, with the free-for-all ranking
-alongside (the two agree: Spearman $\rho = \ffaduelspearman$). Read in
-tiers: with four games per pairing, small gaps are noise, and the extreme
-negative values at the bottom are scale artifacts of near-zero score rates.}
+alongside (the two agree: Spearman $\rho = \ffaduelspearman$).}
 \label{tab:elo}
 \end{table}
 
@@ -46,25 +62,26 @@ identical 0.17 score rate, the same basement. Four headlines:
     crushes everything below and splits the games among themselves. The
     free-for-all \emph{does} separate them (0.90/0.85/0.75) --- being
     outnumbered amplifies small differences. The tie is not just a
-    small-sample problem: \S\ref{sec:transitivity} shows the podium's
+    small-sample problem: Chapter~\ref{ch:limits} shows the podium's
     head-to-head structure is genuinely cyclic.
   \item \textbf{\code{v8} shares the top} using the one feature no later
-    model kept --- the local softmax (Table~\ref{tab:lineage}). The most
+    model kept --- the local softmax (\S\ref{sec:bg-lineage}). The most
     obvious unexplored bot is \code{v8}'s scoring plus \code{v12}'s
     transport.
   \item \textbf{\code{v11} collapsed, in both tournaments.} One feature
-    separates it from its parent and one from its child; the case study
-    below pins down which feature and why.
+    separates it from its parent and one from its child; \S\ref{sec:elo-v11}
+    pins down which feature and why.
   \item \textbf{Never attacking is a decent strategy.}
     \code{v0\_expansion}, which has no war agent at all, ranks 4th in duels
     --- above every pre-OT model that fights. The eager attackers
     (\code{v1\_knapsack} and its hybrid) lose both tournaments outright.
 \end{enumerate}
 
-\subsection{The lineage as an ablation study}
+\section{The lineage as an ablation study}
 \label{sec:elo-ablation}
 
-Because each lineage step adds (approximately) one feature
+A flat ranking hides a second, sharper reading of the same games. Because
+each lineage step adds (approximately) one feature
 (\S\ref{sec:bg-lineage}), the child-vs-parent head-to-head inside the
 tournaments is an ablation: the marginal value of one idea with everything
 else held fixed. Table~\ref{tab:ablation} reads the existing game logs this
@@ -75,8 +92,9 @@ way --- no new games were played.
 \resultstable{elo_duel/tables/ablation}
 \caption{Each lineage step as an ablation: the child's head-to-head score
 rate against its parent (4 games each per protocol) and the overall rating
-gap. $\Delta$Elo magnitudes at the extremes are Bradley--Terry scale
-artifacts; the head-to-head columns are the honest ablation signal.}
+gap. $\Delta$Elo magnitudes at the extremes are scale artifacts
+(\S\ref{sec:elo-protocol}); the head-to-head columns are the honest
+ablation signal.}
 \label{tab:ablation}
 \end{table}
 
@@ -104,12 +122,12 @@ Four readings:
     largest recovery. The case study below takes it apart.
 \end{enumerate}
 
-\subsection{Case study: the one-feature collapse of \code{v11}}
+\section{Case study: the one-feature collapse of \code{v11}}
 \label{sec:elo-v11}
 
 The ladder's strangest datum: \code{v11} sits hundreds of Elo below both its
 parent \code{v10} and its child \code{v12}. The lineage
-(Table~\ref{tab:lineage}) makes this a controlled puzzle, because each step
+(\S\ref{sec:bg-lineage}) makes this a controlled puzzle, because each step
 is a single feature:
 
 \begin{itemize}
@@ -153,8 +171,8 @@ goes silent, which is why \code{v12} recovers. This fits the replay, the
 aggregate, and the fact that the collapse is identical under both
 tournament protocols --- but it is a hypothesis, not yet an observation.
 The direct check (log each node's requests during a replayed loss) is
-queued in \S\ref{sec:open}. Keep the border reserve in mind: this is the
-first of three places it proves decisive
+queued in Chapter~\ref{ch:findings}. Keep the border reserve in mind: this
+is the first of three places it proves decisive
 (\S\ref{sec:elo-rps}, \S\ref{sec:combat} are the others).
 
 \begin{figure}[p]
@@ -169,3 +187,13 @@ to the time limit. Middle: \code{v11} --- destroyed by tick 1000. Bottom:
 right panels: nodes held.}
 \label{fig:v11}
 \end{figure}
+
+\bigskip
+\noindent
+Where this leaves us: a defensible ranking, a feature-by-feature account of
+how the bots got here, and one anomaly explained. But the ranking's own
+summit is a three-way tie that more games would not break --- \code{v9}
+beats \code{v8}, \code{v12} beats \code{v9}, and \code{v12} only splits
+with \code{v8}. That is not noise; it is structure a single number cannot
+hold. Measuring how much of the game lives beyond any ranking is the next
+chapter.
