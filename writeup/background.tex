@@ -52,6 +52,111 @@ Two terms recur constantly, so we fix them here:
     calls this the \emph{frontline garrison}.)
 \end{description}
 
+\subsection{The ideas inside the components}
+\label{sec:bg-ideas}
+
+The lineage below names four ideas --- knapsack war, annealed layouts, local
+softmax, OT transport --- each of which is a nice geometric or combinatorial
+observation. This subsection traces them; everything later in the report
+leans on these pictures.
+
+\paragraph{Building is an anti-magnet problem.} A powerplant produces
+nothing itself; it pays +2/tick to every adjacent factory. So powerplants
+want to be surrounded by factories, and factories want at least one
+powerplant neighbor --- like atoms that prefer unlike neighbors
+(Figure~\ref{fig:bg-economy}, left). On an even cycle you can alternate the
+two types perfectly; on an \emph{odd} cycle you cannot --- some edge always
+joins two of a kind and is wasted (Figure~\ref{fig:bg-economy}, right).
+This is exactly the physicists' \emph{frustrated Ising model}, and choosing
+the best layout on a general graph is the MAX-CUT problem
+\citep{goemans1995,lucas2014}: NP-hard, riddled with local optima that trap
+greedy improvement. Hence the two solvers in the lineage: \emph{simulated
+annealing} \citep{kirkpatrick1983} escapes local optima by sometimes
+accepting bad swaps early on, and the Goemans--Williamson approach
+\citep{goemans1995} relaxes each binary choice to a direction in space and
+cuts with a random hyperplane. (The game's real objective is a weighted,
+factory-biased version of pure alternation, but the geometry is the same.)
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/economy_ising.pdf}
+\caption{The building problem. Left: the payoff motif --- one powerplant
+(P) boosting every adjacent factory (F). Middle: on even cycles, perfect
+alternation is possible. Right: on odd cycles some edge is always
+``frustrated'' --- the combinatorial obstruction that makes layout
+optimization hard.}
+\label{fig:bg-economy}
+\end{figure}
+
+\paragraph{Moving troops: a pressure field vs.\ a shipping manifest.} The
+two transport generations are two classical pictures of the same problem
+(Figure~\ref{fig:bg-transport}). \emph{Gradient transport} treats the
+mismatch between where troops are and where they are wanted as a pressure
+field: solve for a smooth ``height'' over the graph (a Poisson equation ---
+the same mathematics as heat or electric flow \citep{benamou2000}) and let
+troops roll downhill. Robust and cheap, but myopic: flow follows local
+slope, so mass can dribble, split badly, or strand on plateaus.
+\emph{OT transport} instead writes the shipping manifest explicitly: pair
+every surplus troop with a destination so that total travel time is
+minimized --- the Monge--Kantorovich optimal-transport problem
+\citep{kantorovich1942,peyre2019}, solved exactly as a minimum-cost flow
+\citep{dantzig1963,orlin1997}. The manifest knows global structure (send 60
+\emph{there}, 40 \emph{further}); the pressure field only knows which way is
+downhill. \S\ref{sec:transport} measures the difference.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/transport_views.pdf}
+\caption{Two views of the same transport problem: one surplus (+100), two
+deficits ($-60$, $-40$). Left: gradient transport --- a pressure field over
+the graph, flow follows the slope. Right: OT transport --- explicit
+consignments on cheapest routes.}
+\label{fig:bg-transport}
+\end{figure}
+
+\paragraph{Attacking is shopping with a budget.} Look along your border:
+each adjacent enemy node has a \emph{price} (the troops parked on it,
+marked up 20\% if fortified) and a \emph{value} (capital 5, artillery 3,
+powerplant 2, factory 1, plus synergy bonuses). The troops on your frontier
+are a \emph{budget}. Choosing which subset of targets to hit is then the
+classic 0/1 knapsack problem (Figure~\ref{fig:bg-knapsack}) --- the
+\code{v1\_knapsack} models solve it by value-per-price greed (and, for
+benchmarking, exactly). Later war agents keep the same price/value scoring
+but simplify the selection to a priority rule, preferring valuable targets
+with few connections --- fewer ways for the enemy to reinforce them or
+counterattack from them --- and attack any target the moment local supply
+exceeds its price.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/knapsack_war.pdf}
+\caption{The war agent's decision as a knapsack: frontier troops are the
+budget; each reachable enemy node has a price (defenders) and a value
+(structure worth); pick the affordable basket of maximum value.}
+\label{fig:bg-knapsack}
+\end{figure}
+
+\paragraph{Attention: one auction or many.} Stage 1 of every bot ends with
+a softmax: node scores become shares of the army. A \emph{global} softmax
+is a single auction --- the best-scoring target in the world attracts
+troops from everywhere, however far away (Figure~\ref{fig:bg-softmax},
+left). \code{v8}'s \emph{local} softmax discounts each target's pull by
+distance, so nodes compete only with nearby rivals and each region feeds
+its own best target (right). The effect is an army that fights on several
+fronts at once instead of over-committing to the single shiniest
+objective. This one change is, by the ladder of \S\ref{sec:elo}, the most
+valuable feature any model tested --- and no later model kept it.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/softmax_views.pdf}
+\caption{Global vs.\ local softmax over the same scores (darker = higher).
+Global: every node's troops flow toward the single best target. Local
+(\code{v8}): pull decays with distance, so each region attends to its own
+target.}
+\label{fig:bg-softmax}
+\end{figure}
+
 \subsection{The bot lineage}
 \label{sec:bg-lineage}
 
@@ -59,23 +164,23 @@ Thirteen versions compete. Each is one deliberate change over its
 predecessor; reading this table is enough to follow every result in the
 report.
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \begin{tabular}{ll}
 \toprule
 Model & What changed \\
 \midrule
 \code{v0\_expansion}      & Baseline: economy + expansion only. Never attacks. \\
-\code{v1\_knapsack}       & Adds a war agent (and drops expansion): attack \\
-                          & whenever value-per-cost looks good. \\
+\code{v1\_knapsack}       & Adds the knapsack war agent (\S\ref{sec:bg-ideas}), \\
+                          & dropping expansion. \\
 \code{v1\_knapsack\_hybrid} & All three agents, expansion at half weight. \\
-\code{v4}                 & Simpler, better war agent; the long-time default. \\
-\code{v5\_qubo}           & Build layout chosen by an annealed solver. \\
+\code{v4}                 & Simpler priority-rule war agent; the long-time default. \\
+\code{v5\_qubo}           & Build layout by annealed MAX-CUT (\S\ref{sec:bg-ideas}). \\
 \code{v6}                 & Same, with the layout biased toward factories. \\
 \code{v7}                 & Stops expanding while behind on construction. \\
-\code{v8}                 & Softmax over node scores becomes \emph{local}: \\
-                          & troops compete for nearby targets, not global ones. \\
-\code{v9}                 & Switches gradient transport for OT transport. \\
+\code{v8}                 & Local softmax (\S\ref{sec:bg-ideas}): troops compete \\
+                          & for nearby targets, not global ones. \\
+\code{v9}                 & Gradient transport $\to$ OT transport (\S\ref{sec:bg-ideas}). \\
 \code{v10}                & = v9 + v7's construction discipline. \\
 \code{v11}                & Requests subtract troops already \emph{en route}: \\
                           & a node stops asking once help is on the way. \\

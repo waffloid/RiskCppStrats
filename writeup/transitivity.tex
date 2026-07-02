@@ -30,7 +30,7 @@ fifth is simply invisible to \emph{any} scalar rating. The pairwise score
 matrix itself (in \code{results/}) is thus fully summarized by two objects:
 the potential (Table~\ref{tab:elo}) and the cycles, to which we now turn.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.62\textwidth]{\resultsfig{elo_duel/figures/hodge_vs_elo.pdf}}
 \caption{Hodge potential vs.\ Bradley--Terry rating, duel protocol. The
@@ -56,7 +56,7 @@ together (88--116$^\circ$), and the economy-first mid-table together
 (180--250$^\circ$). Intransitivity in this game is not diffuse noise; it is
 a single rotation through posture space.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.6\textwidth]{\resultsfig{elo_duel/figures/cyclic_plane.pdf}}
 \caption{Models on the leading cyclic plane of the duel tournament's curl
@@ -65,7 +65,7 @@ position in it). Posture families cluster in phase.}
 \label{fig:cyclic-plane}
 \end{figure}
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \resultstable{elo_duel/tables/curl_triangles}
 \caption{Largest-curl triangles in the duel tournament (residual flow around
@@ -94,7 +94,7 @@ local softmax buys against the field, it does not survive simultaneous
 pressure from two OT-supplied fronts: the cycle is real, and it turns on
 \emph{which} strength a matchup happens to probe.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{\resultsfig{case_studies/figures/v9_beats_v8.pdf}}
 \caption{FFA tournament game 1272 replayed. All three curves are the three
@@ -125,7 +125,7 @@ three archetypes on \emph{one} chassis (v12's QUBO economy + OT transport,
 \code{src/ai/models/archetypes.cpp}) differing only in posture, and played
 the triangle (12 duels per pair, Table~\ref{tab:archetypes}).
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \resultstable{archetypes/tables/archetypes}
 \caption{Archetype triangle, posture isolated on a fixed chassis. Score rate

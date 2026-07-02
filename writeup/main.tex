@@ -7,6 +7,15 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage[round]{natbib}
 \usepackage{xcolor}
+\usepackage[section]{placeins}
+
+% Floats: keep figures near their text instead of drifting to the end.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{5}
 
 \newcommand{\code}[1]{\texttt{#1}}
 % Generated artifacts, relative to this file.
