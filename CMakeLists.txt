@@ -209,7 +209,7 @@ add_executable(gym_economy src/apps/gyms/gym_economy.cpp)
 target_link_libraries(gym_economy PRIVATE crisky_gyms)
 
 add_executable(gym_combat src/apps/gyms/gym_combat.cpp)
-target_link_libraries(gym_combat PRIVATE crisky_gyms)
+target_link_libraries(gym_combat PRIVATE crisky_gyms crisky_graph_algo)
 
 add_executable(gym_transport src/apps/gyms/gym_transport.cpp)
 target_link_libraries(gym_transport PRIVATE crisky_gyms)

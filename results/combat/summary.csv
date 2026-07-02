@@ -1,0 +1,5 @@
+rank,model,wins,draws,games,kd,corridor,bipartite_3_5,star_hub,grid_5x5
+1,v12,3,0,12,2.01,3,0,0,0
+2,v1_knapsack,0,3,12,5.28,0,0,0,0
+3,v4,0,0,12,0.66,0,0,0,0
+4,v9,0,3,12,0.65,0,0,0,0

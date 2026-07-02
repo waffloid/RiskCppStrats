@@ -1,0 +1,18 @@
+{
+  "git_sha": "a398a86e7b1f4dc24ed4f66d0d82e2dda4b8c3f5",
+  "date_utc": "2026-07-02T14:28:33.735241+00:00",
+  "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/ordering_bench/run.py --runs=10 --economy=mcmc",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "orderings": [
+      "sequential",
+      "cheapest_first",
+      "nearest_first",
+      "production_gradient"
+    ],
+    "economy": "mcmc",
+    "runs": 10,
+    "seed": 42
+  }
+}

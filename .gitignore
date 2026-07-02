@@ -25,3 +25,9 @@ compile_commands.json
 
 # Experiment output
 output/
+
+# LaTeX build artifacts
+writeup/build/
+
+# Python
+__pycache__/

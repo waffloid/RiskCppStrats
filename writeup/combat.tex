@@ -1,0 +1,29 @@
+% Combat battery -- generated tables from results/combat/
+\textbf{Benchmark.} Pure tactics: building is disabled and each candidate
+model fights a fixed baseline (\code{v4}) on four hand-built maps ---
+\code{corridor} (a path with opposing factory chains), \code{bipartite\_3\_5}
+(a dense frontier), \code{star\_hub} (one side holds the hub), and
+\code{grid\_5x5} (diagonal split). This isolates the war agents and transport
+from economy and expansion, which dominate the full-game ladder of
+\S\ref{sec:elo}. Scores: wins over all benchmark runs and aggregate kill/death
+ratio.
+
+\begin{table}[ht]
+\centering
+\resultstable{combat/tables/combat}
+\caption{Combat battery vs.\ the \code{v4} baseline, 3 runs per map.
+Per-map columns give wins out of runs.}
+\label{tab:combat}
+\end{table}
+
+\textbf{Reading.} The control row dominates the interpretation: \code{v4}
+against itself wins 0/12 as player~0, i.e.\ these maps are heavily biased
+toward the player-1 slot, and raw win counts must be read as \emph{wins above
+control}, not win rates. By that standard \code{v12} is the only model that
+beats the asymmetry anywhere --- it sweeps \code{corridor} 3/3, which is
+exactly the map its frontline-garrison pooling was built for. The K/D column
+adds texture the win column misses: \code{v1\_knapsack} trades at 5.3:1 yet
+only stalemates (3 draws) --- efficient attrition without the transport to
+convert it --- while \code{v9}'s OT transport alone (0.65 K/D, matching the
+\code{v4} control) does not help on pure-combat maps. A symmetric protocol
+(each model playing both slots) is the cheap fix for the position bias.

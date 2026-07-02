@@ -2,6 +2,7 @@
 #include "gyms/combat_benchmarks.hpp"
 #include "systems/combat/combat_solvers.hpp"
 #include "systems/common/data_sink.hpp"
+#include "ai/models/model_registry.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -30,6 +31,7 @@ static void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
+    register_graph_algo_models();
     std::string solver_name = "v2_knapsack";
     std::string opponent_name = "random";
     std::string benchmark_name = "corridor";

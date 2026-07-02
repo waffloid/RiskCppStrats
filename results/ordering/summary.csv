@@ -1,0 +1,5 @@
+rank,ordering,acc_production_mean,acc_production_std,total_ticks_mean,n
+1,nearest_first,57530,7204,2923,10
+2,production_gradient,57525,7201,2792,10
+3,cheapest_first,57510,7208,2160,10
+4,sequential,57504,7183,3379,10

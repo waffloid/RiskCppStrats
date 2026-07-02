@@ -1,0 +1,104 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage[round]{natbib}
+\usepackage{xcolor}
+
+\newcommand{\code}[1]{\texttt{#1}}
+% Root of the generated results tree, relative to this file.
+\newcommand{\resultstable}[1]{\input{../results/#1}}
+
+\title{CRisky: Empirical Benchmarks\\
+  \large Scores and rankings for bots, economy, transport, ordering, and combat}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+CRisky decomposes a real-time graph-strategy game into subproblems --- building,
+transport, combat --- each attacked by specialized solvers rather than end-to-end
+learning. This document makes that program empirical: every component with
+competing proposals gets a benchmark, a score, and a ranking. Bots are ranked by
+round-robin tournament under a Bradley--Terry model; economy, transport, and
+ordering solvers are ranked in their respective gyms. All numbers in this
+document are generated artifacts: each experiment records its seeds, parameters,
+and the git revision it ran at, and every table is \code{\textbackslash input}
+directly from the results tree.
+\end{abstract}
+
+\section{Methodology and reproducibility}
+\label{sec:method}
+
+The empirical infrastructure is a three-way decomposition at the repository root,
+each stratified by experiment:
+
+\begin{itemize}
+  \item \code{experiments/<name>/run.py} --- the experiment \emph{definition}:
+    fixed solver lists, seed bases, and protocol. Invoked as
+    \code{python3 -m experiments.<name>.run}.
+  \item \code{results/<name>/} --- machine-produced artifacts:
+    \code{manifest.json} (git SHA, UTC date, exact command, all parameters),
+    \code{raw/*.csv} (every individual game or run), \code{summary.csv}
+    (the aggregated ranking), and \code{tables/*.tex} (the booktabs tables
+    included below).
+  \item \code{writeup/} --- this document; one section per experiment.
+\end{itemize}
+
+Reproducing any table is: check out the SHA in the manifest, build, re-run the
+module. Runners are deterministic given the manifest parameters (fixed seed
+bases; no wall-clock or unseeded randomness). This round is a
+\emph{quick pass} --- game counts and seed counts are chosen to give stable
+rankings in minutes, not tight confidence intervals; each section notes what a
+bigger run would sharpen.
+
+\section{Bot ladder}
+\label{sec:elo}
+\input{elo}
+
+\section{Economy solvers}
+\label{sec:economy}
+\input{economy}
+
+\section{Transport solvers}
+\label{sec:transport}
+\input{transport}
+
+\section{Ordering solvers}
+\label{sec:ordering}
+\input{ordering}
+
+\section{Combat battery}
+\label{sec:combat}
+\input{combat}
+
+\section{Open items}
+\label{sec:open}
+
+\begin{itemize}
+  \item \textbf{Scale the ladder.} The quick pass plays 4 games per pair;
+    Elo gaps under $\sim$100 points should not be over-read. The harness is
+    deterministic and parallel; an overnight run with 20+ games per pair and
+    bootstrap confidence intervals is the obvious next step.
+  \item \textbf{\code{path\_end} anomaly.} Both transport solvers stall at a
+    loss plateau on the path preset (\S\ref{sec:transport}); neither converges.
+    \code{gym\_transport\_diag} exists for exactly this and should be pointed
+    at it.
+  \item \textbf{Ordering metric.} Accumulated production barely separates
+    orderings on MCMC plans (\S\ref{sec:ordering}); a discounted objective
+    $\int e^{-\lambda t} P(t)\,dt$ would reward early payoff directly.
+  \item \textbf{Gym metrics vs.\ game strength.} The factory-biased QUBO
+    objective scores \emph{worse} in the economy gym yet powers stronger bots
+    (v6+); the gym's efficiency metric is a proxy, not the objective. Elo is
+    the ground truth; gym scores are diagnostics.
+\end{itemize}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

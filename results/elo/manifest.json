@@ -1,0 +1,29 @@
+{
+  "git_sha": "a398a86e7b1f4dc24ed4f66d0d82e2dda4b8c3f5",
+  "date_utc": "2026-07-02T14:24:06.355483+00:00",
+  "command": "experiments/elo/run.py --games-per-pair=4 --dt=16 --workers=10",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "models": [
+      "v0_expansion",
+      "v1_knapsack",
+      "v1_knapsack_hybrid",
+      "v4",
+      "v5_qubo",
+      "v5_qubo_composite",
+      "v6",
+      "v7",
+      "v8",
+      "v9",
+      "v10",
+      "v11",
+      "v12"
+    ],
+    "games_per_pair": 4,
+    "dt": 16,
+    "max_ticks": 5000,
+    "base_seed": 1000,
+    "protocol": "3-player solo-vs-duo, winner by final node count"
+  }
+}

@@ -1,0 +1,24 @@
+% Ordering solver benchmark -- generated tables from results/ordering/
+\textbf{Benchmark.} Fix an economy plan (MCMC-annealed layouts on 10 seeded
+graphs), then choose the \emph{order} in which to execute its build steps,
+paying each structure's cost from accumulated production. Scores:
+\emph{accumulated production} (the integral of the production curve over the
+build-out; higher rewards early payoff) and \emph{ticks to complete} the plan.
+
+\begin{table}[ht]
+\centering
+\resultstable{ordering/tables/ordering}
+\caption{Ordering solver ranking, MCMC economy plans, 10 seeds.}
+\label{tab:ordering}
+\end{table}
+
+\textbf{Reading.} Accumulated production is nearly flat across orderings
+(spread $\approx 0.05\%$, far under the seed-to-seed sd) --- on these plans the
+metric is dominated by the plan itself, not its ordering. Ticks-to-complete
+discriminates sharply: \code{cheapest\_first} finishes 36\% sooner than naive
+\code{sequential} (2160 vs.\ 3379 ticks), with \code{production\_gradient} ---
+greedily building whichever remaining step most increases production --- second
+(2792) while edging the accumulation metric. Verdict: \code{cheapest\_first}
+if you want the plan online fast, \code{production\_gradient} if you want the
+production curve front-loaded; the current headline metric cannot separate them
+further, motivating the discounted objective proposed in \S\ref{sec:open}.

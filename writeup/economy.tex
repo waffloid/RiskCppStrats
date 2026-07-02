@@ -1,0 +1,33 @@
+% Economy solver benchmark -- generated tables from results/economy/
+\textbf{Benchmark.} The player owns an entire Poisson-generated map with ample
+troops on every node; a solver proposes a factory/powerplant layout; the score
+is \emph{efficiency}: achieved production rate divided by a (loose, generally
+infeasible) upper bound that assumes every node is a factory with all neighbors
+powerplants. The placement problem is a signed quadratic assignment on the graph
+--- a MAX-CUT variant \citep{goemans1995}, encoded in Ising form
+\citep{lucas2014} and solved by simulated annealing
+\citep{kirkpatrick1983,metropolis1953} from a greedy warm start, or by
+Goemans--Williamson-style SDP rounding \citep{goemans1995}. Ten graphs per
+size, seeds fixed in the manifest.
+
+\begin{table}[ht]
+\centering
+\resultstable{economy/tables/economy_n150}
+\quad
+\resultstable{economy/tables/economy_n300}
+\caption{Economy solver ranking by mean efficiency $\pm$ sd over 10 random
+graphs, at 150 nodes (top) and 300 nodes (bottom).}
+\label{tab:economy}
+\end{table}
+
+\textbf{Reading.} The annealed QUBO variants are statistically
+indistinguishable from one another ($\approx 0.39$) and a hair above raw MCMC
+over node assignments; both roughly double the greedy local rule, and the
+bootstrap opening-book (four factories and one powerplant, by design) is not a
+contender on this metric. Two caveats. First, the denominator is a relaxation,
+so 0.39 is \emph{not} ``39\% of what is achievable''; relative order is the
+signal. Second, the factory-biased objective ranks last among QUBO variants
+here yet produces stronger \emph{bots} (v6 and every OT-era model use it) ---
+in-game, factories pay off before their powerplant neighborhoods complete, a
+dynamic this static benchmark cannot see. Gym efficiency is a diagnostic, not
+the objective.

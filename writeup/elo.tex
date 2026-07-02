@@ -1,0 +1,68 @@
+% Bot ladder -- generated tables from results/elo/
+\textbf{Benchmark.} Full-game strength, the ground-truth metric every other
+section proxies. All registered models compete except \code{v2\_knapsack} and
+\code{v3}, which are code-identical to \code{v4}. Each game is three-player on
+a fresh Poisson map: one model plays \emph{solo} against two copies of its
+opponent, and scores 1 if it holds strictly more nodes when the game ends
+(elimination or 5000 ticks), $\tfrac12$ on a tie. The 1-vs-2 protocol is
+deliberately hostile: surviving a coordinated majority is a stronger signal
+than a symmetric duel at these game counts. Every unordered pair plays a fixed
+number of games, half solo on each side, with deterministic seeds.
+
+Ratings are fit by maximum likelihood under a Bradley--Terry model
+\citep{bradleyterry1952} via minorization--maximization \citep{hunter2004} on
+the aggregate score matrix, then mapped onto the familiar Elo scale
+($1500 + 400\log_{10} p$) \citep{elo1978}. Unlike sequential K-factor updates,
+the fit is independent of game order and exactly reproducible from
+\code{raw/games.csv}.
+
+\begin{table}[ht]
+\centering
+\resultstable{elo/tables/elo_table}
+\caption{Bot ladder: Bradley--Terry ratings on the Elo scale. ``Score rate''
+is the model's mean score per game across all opponents.}
+\label{tab:elo}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\resultstable{elo/tables/win_matrix}
+\caption{Pairwise score rates (row vs.\ column), models ordered by rating.
+Model names abbreviated: \code{v1k} = \code{v1\_knapsack}, \code{v1kh} =
+hybrid, \code{v5q}/\code{v5qc} = QUBO/composite.}
+\label{tab:winmatrix}
+\end{table}
+
+\textbf{Reading.} Four headlines, to be read in tiers (with four games per
+pair, gaps under $\sim$100 Elo are noise; the extreme negative ratings at the
+bottom are Bradley--Terry scale artifacts of near-zero score rates, not
+meaningful magnitudes).
+
+\begin{enumerate}
+  \item \textbf{\code{v8} tops the ladder} (score rate 0.90) --- and \code{v8}
+    is the \emph{only} model using the distance-decayed local softmax, a
+    branch the lineage abandoned when v9 pivoted to OT transport. The single
+    most valuable tweak tested is currently unused by every later model;
+    combining \code{v8}'s softmax with \code{v12}'s transport is the most
+    obvious unexplored bot.
+  \item \textbf{OT transport is the strongest lineage trunk}: \code{v9},
+    \code{v12}, \code{v10} fill ranks 2--5 and all clear every pre-OT model
+    except \code{v8}.
+  \item \textbf{\code{v11} is a regression, not noise} (0.17, adrift from both
+    its parent \code{v10} at 0.65 and its child \code{v12} at 0.75). The only
+    delta is effective-troops demand netting; the natural suspect is
+    demand starvation --- in-transit troops cancel demand before they arrive,
+    so targets stop pulling reinforcements --- which \code{v12}'s standing
+    frontline-garrison demand would mask. This wants a diagnosis before the
+    netting is trusted anywhere.
+  \item \textbf{Pacifism is underrated at these game counts}:
+    \code{v0\_expansion}, which has no war agent at all, sits mid-table at
+    0.60, above \code{v4}--\code{v6}. In the 1-vs-2 protocol, not initiating
+    fights while out-expanding is evidently a viable strategy; the knapsack-era
+    aggressors (\code{v1\_knapsack}, hybrid) are the losers of the entire
+    tournament.
+\end{enumerate}
+
+The raw game log and manifest under \code{results/elo/} suffice to re-fit or
+extend the ladder without re-playing anything.

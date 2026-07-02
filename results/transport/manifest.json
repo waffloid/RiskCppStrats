@@ -1,0 +1,23 @@
+{
+  "git_sha": "a398a86e7b1f4dc24ed4f66d0d82e2dda4b8c3f5",
+  "date_utc": "2026-07-02T14:26:23.488510+00:00",
+  "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/transport_bench/run.py --ticks=800",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "presets": [
+      "star_center",
+      "path_end",
+      "bipartite_split",
+      "poisson_edge_ring",
+      "poisson_3_clusters",
+      "poisson_capital_rush"
+    ],
+    "solvers": [
+      "greedy",
+      "ot"
+    ],
+    "loss": "l1",
+    "ticks": 800
+  }
+}

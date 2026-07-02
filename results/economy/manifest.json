@@ -1,0 +1,26 @@
+{
+  "git_sha": "a398a86e7b1f4dc24ed4f66d0d82e2dda4b8c3f5",
+  "date_utc": "2026-07-02T14:28:48.477336+00:00",
+  "command": "/Users/joelbraun/Desktop/Projects/CRisky/experiments/economy_bench/run.py --runs=10 --nodes=150,300",
+  "python": "3.14.5",
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "params": {
+    "solvers": [
+      "greedy",
+      "bootstrap",
+      "mcmc",
+      "qubo",
+      "qubo_adjacency",
+      "qubo_distance",
+      "qubo_degree",
+      "qubo_composite",
+      "qubo_factory_biased"
+    ],
+    "runs": 10,
+    "seed": 42,
+    "node_sizes": [
+      150,
+      300
+    ]
+  }
+}

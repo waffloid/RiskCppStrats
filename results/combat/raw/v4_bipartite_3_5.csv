@@ -1,0 +1,4 @@
+run_id,spartan_mult,ticks,winner,nodes_p0,nodes_p1,troops_p0,troops_p1,deaths_p0,deaths_p1
+0,1,2000,1,0,8,81,11384,2246,1127
+1,1,2000,1,0,8,81,11384,2246,1127
+2,1,2000,1,0,8,81,11384,2246,1127
